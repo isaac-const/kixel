@@ -27,7 +27,7 @@ const S = {
   color: hex2rgba(PALETTE[3]), tool: 'pencil', brush: 1,
   sel: null as Frame | null, selRef: null as Ref | null, selCont: null as Cont | null, selNote: null as Note | null,
   lastSel: null as Frame | null, hover: null as { wx: number; wy: number } | null, spaceDown: false,
-  opacity: 100, opt: { mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
+  opacity: 100, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
   mine: (() => { try { const v = JSON.parse(store.get('kixel-mine') || 'null'); return Array.isArray(v) ? v as string[] : PALETTE.slice(0, 8) } catch { return PALETTE.slice(0, 8) } })()
 }
 const selSet = new Set<Frame>()
@@ -235,8 +235,8 @@ function commitStroke() {
 function floodFill(f: Frame, x: number, y: number) {
   const s = newStroke(f, false); if (!s) return
   const buf = s.buf, o0 = (y * f.w + x) * 4, t = [buf[o0], buf[o0 + 1], buf[o0 + 2], buf[o0 + 3]], c = S.color
-  if (t[0] === c[0] && t[1] === c[1] && t[2] === c[2] && t[3] === 255) return
-  const same = (i: number) => buf[i] === t[0] && buf[i + 1] === t[1] && buf[i + 2] === t[2] && buf[i + 3] === t[3]
+  if (t[0] === c[0] && t[1] === c[1] && t[2] === c[2] && t[3] === 255 && S.tol === 0) return
+  const same = (i: number) => near(buf, i, t, S.tol)
   if (S.opt.fillAll) {   // mesma cor em todo o quadro, mesmo sem encostar
     for (let yy = 0; yy < f.h; yy++) for (let xx = 0; xx < f.w; xx++) if (same((yy * f.w + xx) * 4)) setPx(s, xx, yy, c)
     stroke = s; commitStroke(); edited(s); return
@@ -623,7 +623,7 @@ const paletteById = (id: string | undefined): string[] => (id === 'mine' ? S.min
 const paletteOf = (f: Frame | null) => paletteById(f?.palId ?? S.defaultPal)
 
 // ================================================================ entrada (mouse, toque e caneta)
-type Mode = 'none' | 'shape' | 'pxsel' | 'pxmove' | 'pxscale' | 'notemove' | 'framedrag' | 'contdrag' | 'marquee' | 'pending' | 'tap' | 'stroke' | 'pan' | 'drag' | 'dragcont' | 'refmove' | 'resize' | 'gesture' | 'ignore'
+type Mode = 'none' | 'shape' | 'pxsel' | 'pxlasso' | 'pxmove' | 'pxscale' | 'notemove' | 'framedrag' | 'contdrag' | 'marquee' | 'pending' | 'tap' | 'stroke' | 'pan' | 'drag' | 'dragcont' | 'refmove' | 'resize' | 'gesture' | 'ignore'
 let mode: Mode = 'none'
 const ptrs = new Map<number, { x: number; y: number }>()
 let start = { sx: 0, sy: 0, cx: 0, cy: 0, wx: 0, wy: 0 }
@@ -1003,13 +1003,24 @@ function drawShape() {
 const clampPx = (f: Frame, p: { x: number; y: number }) => ({ x: Math.max(0, Math.min(f.w - 1, p.x)), y: Math.max(0, Math.min(f.h - 1, p.y)) })
 
 // ---------------------------------------------------------------- seleção de pixels (retângulo, mover, copiar, colar)
-type PSel = { f: Frame; x: number; y: number; w: number; h: number }
+type PSel = { f: Frame; x: number; y: number; w: number; h: number; mask?: Uint8Array }
 let psel: PSel | null = null
 { const u = doc.undo.bind(doc), r = doc.redo.bind(doc); doc.undo = () => { psel = null; return u() }; doc.redo = () => { psel = null; return r() } }   // a seleção não sobrevive a desfazer/refazer (o tamanho dela ficaria desatualizado)
 let pxDrag: { x0: number; y0: number; moved: boolean } | null = null
+let lassoPts: { x: number; y: number }[] = [], lassoAdd = false
 let pxMove: { float: Uint8Array; base: Uint8Array; ox: number; oy: number; sx: number; sy: number; moved: boolean } | null = null
-const inPsel = (p: PSel, x: number, y: number) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h
-function pxRegion(buf: Uint8Array, f: Frame, r: PSel) { const out = new Uint8Array(r.w * r.h * 4); for (let j = 0; j < r.h; j++) out.set(buf.subarray(((r.y + j) * f.w + r.x) * 4, ((r.y + j) * f.w + r.x + r.w) * 4), j * r.w * 4); return out }
+const inPsel = (p: PSel, x: number, y: number) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h && (!p.mask || p.mask[(y - p.y) * p.w + (x - p.x)] === 1)
+function pxRegion(buf: Uint8Array, f: Frame, r: PSel) {
+  const out = new Uint8Array(r.w * r.h * 4)
+  for (let j = 0; j < r.h; j++) out.set(buf.subarray(((r.y + j) * f.w + r.x) * 4, ((r.y + j) * f.w + r.x + r.w) * 4), j * r.w * 4)
+  if (r.mask) for (let i = 0; i < r.mask.length; i++) if (!r.mask[i]) out.fill(0, i * 4, i * 4 + 4)   // fora da máscara não é da seleção
+  return out
+}
+/** Apaga os pixels da seleção (só os da máscara, se houver). */
+function pxClearIn(buf: Uint8Array, f: Frame, p: PSel) {
+  for (let j = 0; j < p.h; j++) for (let i = 0; i < p.w; i++) if (!p.mask || p.mask[j * p.w + i]) buf.fill(0, ((p.y + j) * f.w + p.x + i) * 4, ((p.y + j) * f.w + p.x + i) * 4 + 4)
+}
+const maskOfData = (d: Uint8Array) => { const m = new Uint8Array(d.length / 4); for (let i = 0; i < m.length; i++) m[i] = d[i * 4 + 3] > 0 ? 1 : 0; return m }
 function pxPut(buf: Uint8Array, f: Frame, data: Uint8Array, w: number, h: number, nx: number, ny: number) {
   for (let j = 0; j < h; j++) { const ty = ny + j; if (ty < 0 || ty >= f.h) continue; for (let i = 0; i < w; i++) { const tx = nx + i; if (tx < 0 || tx >= f.w) continue; const o = (j * w + i) * 4; if (data[o + 3] === 0) continue; buf.set(data.subarray(o, o + 4), (ty * f.w + tx) * 4) } }
 }
@@ -1022,7 +1033,7 @@ function pxCopy(cut: boolean) {
 function pxClear() {
   const p = psel; if (!p) return
   const s = newStroke(p.f, false); if (!s) return
-  for (let j = 0; j < p.h; j++) s.buf.fill(0, ((p.y + j) * p.f.w + p.x) * 4, ((p.y + j) * p.f.w + p.x + p.w) * 4)
+  pxClearIn(s.buf, p.f, p)
   s.minx = p.x; s.miny = p.y; s.maxx = p.x + p.w - 1; s.maxy = p.y + p.h - 1
   stroke = s; commitStroke(); edited(s)
 }
@@ -1040,7 +1051,7 @@ function pxPaste() {
 
 // ---- transformar a seleção de pixels: esticar pelas alças, girar, espelhar, mover com as setas
 type PxHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
-let pxScale: { dir: PxHandle; float: Uint8Array; base: Uint8Array; sw: number; sh: number; L: number; T: number; R: number; B: number; changed: boolean } | null = null
+let pxScale: { dir: PxHandle; float: Uint8Array; base: Uint8Array; sw: number; sh: number; L: number; T: number; R: number; B: number; changed: boolean; masked: boolean } | null = null
 const pxLive = () => (psel && doc.frames.get(psel.f.id) === psel.f ? psel : null)
 /** Alças da seleção em coordenadas de tela. */
 function pxHandles(p: PSel): { dir: PxHandle; x: number; y: number }[] {
@@ -1071,11 +1082,11 @@ function pxResample(src: Uint8Array, sw: number, sh: number, dw: number, dh: num
 function pxReplace(p: PSel, data: Uint8Array, nx: number, ny: number, nw: number, nh: number): boolean {
   const s = newStroke(p.f, false); if (!s) return false
   const f = p.f
-  for (let j = 0; j < p.h; j++) s.buf.fill(0, ((p.y + j) * f.w + p.x) * 4, ((p.y + j) * f.w + p.x + p.w) * 4)
+  pxClearIn(s.buf, f, p)
   pxPut(s.buf, f, data, nw, nh, nx, ny)
   s.minx = Math.max(0, Math.min(p.x, nx)); s.miny = Math.max(0, Math.min(p.y, ny)); s.maxx = Math.min(f.w - 1, Math.max(p.x + p.w - 1, nx + nw - 1)); s.maxy = Math.min(f.h - 1, Math.max(p.y + p.h - 1, ny + nh - 1))
   stroke = s; commitStroke(); edited(s)
-  psel = { f, x: nx, y: ny, w: nw, h: nh }
+  psel = { f, x: nx, y: ny, w: nw, h: nh, mask: p.mask ? maskOfData(data) : undefined }
   return true
 }
 function pxFlip(axis: 'h' | 'v') {
@@ -1112,6 +1123,60 @@ function pxSelectAll() {
   const f = psel?.f ?? targetFrame(); if (!f) { toast('Selecione um quadro primeiro.'); return }
   selectFrame(f); psel = { f, x: 0, y: 0, w: f.w, h: f.h }; if (S.tool !== 'marquee') setTool('marquee'); psel = { f, x: 0, y: 0, w: f.w, h: f.h }; invalidate()
 }
+// ---- varinha mágica, laço e inverter seleção (a seleção passa a ter máscara)
+const near = (buf: Uint8Array, i: number, t: number[], tol: number) => {
+  if (tol <= 0) return buf[i] === t[0] && buf[i + 1] === t[1] && buf[i + 2] === t[2] && buf[i + 3] === t[3]
+  const lim = Math.round(tol * 2.55)
+  return Math.abs(buf[i] - t[0]) <= lim && Math.abs(buf[i + 1] - t[1]) <= lim && Math.abs(buf[i + 2] - t[2]) <= lim && Math.abs(buf[i + 3] - t[3]) <= lim
+}
+/** Cria (ou soma a) uma seleção a partir de uma grade de pixels marcados no quadro inteiro. */
+function setMaskSel(f: Frame, marked: Uint8Array, add: boolean) {
+  let x0 = f.w, y0 = f.h, x1 = -1, y1 = -1
+  const prev = add && psel && psel.f === f ? psel : null
+  if (prev) for (let j = 0; j < prev.h; j++) for (let i = 0; i < prev.w; i++) if (inPsel(prev, prev.x + i, prev.y + j)) marked[(prev.y + j) * f.w + prev.x + i] = 1
+  for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++) if (marked[y * f.w + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+  if (x1 < 0) { psel = null; return }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, mask = new Uint8Array(w * h)
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) mask[y * w + x] = marked[(y0 + y) * f.w + x0 + x]
+  psel = { f, x: x0, y: y0, w, h, mask: mask.every(v => v === 1) ? undefined : mask }
+}
+function wandSelect(f: Frame, x: number, y: number, add: boolean, global: boolean) {
+  if (x < 0 || y < 0 || x >= f.w || y >= f.h) return
+  const buf = doc.activeBuf(f), o0 = (y * f.w + x) * 4, t = [buf[o0], buf[o0 + 1], buf[o0 + 2], buf[o0 + 3]], tol = S.tol
+  const marked = new Uint8Array(f.w * f.h)
+  if (global) { for (let i = 0; i < f.w * f.h; i++) if (near(buf, i * 4, t, tol)) marked[i] = 1 }
+  else {
+    const st = [x, y]
+    while (st.length) {
+      const cy = st.pop()!, cx = st.pop()!
+      if (cx < 0 || cy < 0 || cx >= f.w || cy >= f.h || marked[cy * f.w + cx] || !near(buf, (cy * f.w + cx) * 4, t, tol)) continue
+      marked[cy * f.w + cx] = 1; st.push(cx + 1, cy, cx - 1, cy, cx, cy + 1, cx, cy - 1)
+    }
+  }
+  setMaskSel(f, marked, add); selectFrame(f)
+}
+/** Preenche o polígono do laço (par-ímpar, pelo centro de cada pixel). */
+function lassoSelect(f: Frame, pts: { x: number; y: number }[], add: boolean) {
+  if (pts.length < 3) { if (!add) psel = null; return }
+  const marked = new Uint8Array(f.w * f.h)
+  for (let y = 0; y < f.h; y++) {
+    const cy = y + 0.5, xs: number[] = []
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length]
+      if ((a.y <= cy) !== (b.y <= cy)) xs.push(a.x + ((cy - a.y) / (b.y - a.y)) * (b.x - a.x))
+    }
+    xs.sort((m, n) => m - n)
+    for (let k = 0; k + 1 < xs.length; k += 2) for (let x = Math.max(0, Math.ceil(xs[k] - 0.5)); x <= Math.min(f.w - 1, Math.floor(xs[k + 1] - 0.5)); x++) marked[y * f.w + x] = 1
+  }
+  setMaskSel(f, marked, add); selectFrame(f)
+}
+function pxInvert() {
+  const p = pxLive(); if (!p) return
+  const f = p.f, marked = new Uint8Array(f.w * f.h)
+  for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++) if (!inPsel(p, x, y)) marked[y * f.w + x] = 1
+  setMaskSel(f, marked, false)
+  if (!psel) toast('Não sobrou nada para selecionar.')
+}
 /** Esticar: puxa uma alça; Shift mantém a proporção; passar da borda oposta espelha. */
 function pxScaleMove(wx: number, wy: number, keep: boolean) {
   const sc = pxScale, p = pxLive(), s2 = stroke; if (!sc || !p || !s2) return
@@ -1137,6 +1202,8 @@ function pxScaleMove(wx: number, wy: number, keep: boolean) {
   pxPut(s2.buf, f, pxResample(sc.float, sc.sw, sc.sh, nw, nh, flipX, flipY), nw, nh, x0, y0)
   s2.minx = Math.min(s2.minx, x0); s2.miny = Math.min(s2.miny, y0); s2.maxx = Math.max(s2.maxx, x1 - 1); s2.maxy = Math.max(s2.maxy, y1 - 1)
   if (nw !== p.w || nh !== p.h || x0 !== p.x || y0 !== p.y) sc.changed = true
+  const nd = pxResample(sc.float, sc.sw, sc.sh, nw, nh, flipX, flipY)
+  p.mask = sc.masked ? maskOfData(nd) : undefined
   p.x = x0; p.y = y0; p.w = nw; p.h = nh; edited(s2)
 }
 
@@ -1209,7 +1276,7 @@ function menuItems(wx: number, wy: number): MenuItem[] {
   if (S.tool === 'marquee' && pxLive()) {
     add('Copiar pixels', () => pxCopy(false), 'Ctrl+C'); add('Recortar pixels', () => pxCopy(true), 'Ctrl+X'); add('Colar pixels', () => pxPaste(), 'Ctrl+V', !pxClip); add('Apagar pixels', pxClear, 'Delete'); sep()
     add('Espelhar na horizontal', () => pxFlip('h'), 'Shift+H'); add('Espelhar na vertical', () => pxFlip('v'), 'Shift+V'); add('Girar 90° para a direita', () => pxRotate(1), 'Shift+R'); add('Girar 90° para a esquerda', () => pxRotate(-1)); add('Girar 180°', () => pxRotate(2)); sep()
-    add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
+    add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Inverter seleção', () => { pxInvert(); invalidate() }, 'Ctrl+Shift+I'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
     return it
   }
   if (n) {
@@ -1320,17 +1387,19 @@ ov.addEventListener('pointerdown', e => {
           const s2 = newStroke(f, false)
           if (!s2) { mode = 'ignore'; break }
           const float = pxRegion(s2.buf, f, psel), base = s2.before.slice()
-          for (let j = 0; j < psel.h; j++) base.fill(0, ((psel.y + j) * f.w + psel.x) * 4, ((psel.y + j) * f.w + psel.x + psel.w) * 4)
+          pxClearIn(base, f, psel)
           s2.minx = psel.x; s2.miny = psel.y; s2.maxx = psel.x + psel.w - 1; s2.maxy = psel.y + psel.h - 1
-          stroke = s2; pxScale = { dir: ph, float, base, sw: psel.w, sh: psel.h, L: psel.x, T: psel.y, R: psel.x + psel.w, B: psel.y + psel.h, changed: false }; mode = 'pxscale'
+          stroke = s2; pxScale = { dir: ph, float, base, sw: psel.w, sh: psel.h, L: psel.x, T: psel.y, R: psel.x + psel.w, B: psel.y + psel.h, changed: false, masked: !!psel.mask }; mode = 'pxscale'
         } else if (psel && psel.f === f && inPsel(psel, p.x, p.y)) {
           const s2 = newStroke(f, false)
           if (!s2) { mode = 'ignore'; break }
           const float = pxRegion(s2.buf, f, psel), base = s2.before.slice()
-          if (!e.altKey) for (let j = 0; j < psel.h; j++) base.fill(0, ((psel.y + j) * f.w + psel.x) * 4, ((psel.y + j) * f.w + psel.x + psel.w) * 4)   // Alt: arrasta uma cópia
+          if (!e.altKey) pxClearIn(base, f, psel)   // Alt: arrasta uma cópia
           s2.minx = psel.x; s2.miny = psel.y; s2.maxx = psel.x + psel.w - 1; s2.maxy = psel.y + psel.h - 1
           stroke = s2; pxMove = { float, base, ox: psel.x, oy: psel.y, sx: p.x, sy: p.y, moved: false }; mode = 'pxmove'
-        } else { selectFrame(f); const c = clampPx(f, p); pxDrag = { x0: c.x, y0: c.y, moved: false }; psel = { f, x: c.x, y: c.y, w: 1, h: 1 }; mode = 'pxsel' }
+        } else if (S.selMode === 'wand') { wandSelect(f, p.x, p.y, e.shiftKey, e.altKey); mode = 'ignore' }
+        else if (S.selMode === 'lasso') { selectFrame(f); lassoPts = [{ x: w.x - f.x, y: w.y - f.y }]; lassoAdd = e.shiftKey; mode = 'pxlasso' }
+        else { selectFrame(f); const c = clampPx(f, p); pxDrag = { x0: c.x, y0: c.y, moved: false }; psel = { f, x: c.x, y: c.y, w: 1, h: 1 }; mode = 'pxsel' }
       } else { psel = null; mode = 'pan' }
       break
     case 'frame': { const gx = Math.round(w.x), gy = Math.round(w.y); fdrag = { x0: gx, y0: gy, x1: gx, y1: gy, kind: 'f' }; mode = 'framedrag'; break }
@@ -1384,6 +1453,7 @@ ov.addEventListener('pointermove', e => {
       const c = clampPx(psel.f, localPx(psel.f, w.x, w.y)); pxDrag.moved = true
       psel.x = Math.min(pxDrag.x0, c.x); psel.y = Math.min(pxDrag.y0, c.y); psel.w = Math.abs(c.x - pxDrag.x0) + 1; psel.h = Math.abs(c.y - pxDrag.y0) + 1
     } break
+    case 'pxlasso': { const f2 = S.sel; if (f2) { const q = { x: Math.max(0, Math.min(f2.w, w.x - f2.x)), y: Math.max(0, Math.min(f2.h, w.y - f2.y)) }, L = lassoPts[lassoPts.length - 1]; if (!L || Math.hypot(L.x - q.x, L.y - q.y) > 0.25) lassoPts.push(q) } break }
     case 'pxscale': pxScaleMove(w.x, w.y, e.shiftKey); break
     case 'pxmove': if (pxMove && stroke && psel) {
       const l = localPx(psel.f, w.x, w.y), nx = pxMove.ox + (l.x - pxMove.sx), ny = pxMove.oy + (l.y - pxMove.sy), s2 = stroke, f = psel.f
@@ -1456,6 +1526,7 @@ const up = (e: PointerEvent) => {
   else if (mode === 'shape') { commitStroke(); shape = null }
   else if (mode === 'pxsel') { if (pxDrag && !pxDrag.moved) psel = null; pxDrag = null }
   else if (mode === 'pxmove') { if (pxMove?.moved) commitStroke(); else stroke = null; pxMove = null }
+  else if (mode === 'pxlasso') { const f2 = S.sel; if (f2) lassoSelect(f2, lassoPts, lassoAdd); lassoPts = [] }
   else if (mode === 'pxscale') { if (pxScale?.changed) commitStroke(); else stroke = null; pxScale = null }
   else if (mode === 'drag' || mode === 'dragcont' || mode === 'refmove') finishDrag()
   mode = ptrs.size ? 'ignore' : 'none'
@@ -1483,7 +1554,7 @@ function armLongPress(sx: number, sy: number, cx: number, cy: number) {
   lpTimer = window.setTimeout(() => {
     if (ptrs.size !== 1) return
     const cur = [...ptrs.values()][0]; if (Math.hypot(cur.x - lpStart.sx, cur.y - lpStart.sy) > 8) return
-    if (['stroke', 'shape', 'pending', 'tap', 'pxmove', 'pxscale', 'pxsel', 'framedrag', 'contdrag', 'resize', 'gesture', 'marquee'].includes(mode)) return
+    if (['stroke', 'shape', 'pending', 'tap', 'pxmove', 'pxscale', 'pxlasso', 'pxsel', 'framedrag', 'contdrag', 'resize', 'gesture', 'marquee'].includes(mode)) return
     mode = 'ignore'; noteDrag = null; refDrag = null; contDrag = null; dragSnap = null; dragStart = []
     contextAt(lpStart.cx, lpStart.cy, true)
   }, 550)
@@ -1532,6 +1603,7 @@ window.addEventListener('keydown', e => {
     if (!mod && e.shiftKey && k === 'r') { e.preventDefault(); pxRotate(1); return }
     if (e.key.startsWith('Arrow')) { e.preventDefault(); const n = e.shiftKey ? 8 : 1; pxNudge(e.key === 'ArrowLeft' ? -n : e.key === 'ArrowRight' ? n : 0, e.key === 'ArrowUp' ? -n : e.key === 'ArrowDown' ? n : 0); return }
   }
+  if (mod && e.shiftKey && k === 'i' && S.tool === 'marquee') { e.preventDefault(); pxInvert(); invalidate(); return }
   if (mod && k === 'a' && S.tool === 'marquee') { e.preventDefault(); pxSelectAll(); return }
   if (mod && k === 'd') { e.preventDefault(); duplicateSelection(); return }
   if (mod && k === 'a') { e.preventDefault(); selectFrames([...doc.frames.values()].filter(f => !f.hidden)); return }
@@ -1554,6 +1626,8 @@ window.addEventListener('keydown', e => {
   if ((e.key === 'Delete' || e.key === 'Backspace') && S.tool === 'marquee' && psel) { e.preventDefault(); pxClear(); return }
   if (e.key === '?' || e.key === 'F1') { e.preventDefault(); ui.toggleHelp(); return }
   const map: Record<string, string> = { l: 'line', u: 'rect', o: 'ellipse', m: 'marquee', v: 'select', b: 'pencil', e: 'eraser', g: 'fill', i: 'picker', h: 'hand', f: 'frame', s: 'container', a: 'anim', t: 'note' }
+  if (!mod && (k === 'w' || k === 'q')) { S.selMode = k === 'w' ? 'wand' : 'lasso'; setTool('marquee'); ui.ctxSync(); return }
+  if (!mod && k === 'm') { S.selMode = 'rect'; setTool('marquee'); ui.ctxSync(); return }
   if (!mod && map[k]) { setTool(map[k]); return }
   if (k === 'x') { S.opt.mirror = !S.opt.mirror; ui.ctxSync(); toast('Espelho ' + (S.opt.mirror ? 'ligado' : 'desligado')); return }
   if (k === 'y') { S.opt.mirrorY = !S.opt.mirrorY; ui.ctxSync(); toast('Espelho vertical ' + (S.opt.mirrorY ? 'ligado' : 'desligado')); return }
@@ -1680,9 +1754,25 @@ function drawOverlay() {
   octx.restore()
   if (psel && doc.frames.get(psel.f.id) === psel.f) {
     const a = rectPx({ x: psel.f.x + psel.x, y: psel.f.y + psel.y, w: psel.w, h: psel.h })
-    octx.lineWidth = 1; octx.setLineDash([5, 4]); octx.strokeStyle = '#000'; octx.strokeRect(a.x + 0.5, a.y + 0.5, a.w, a.h); octx.lineDashOffset = 4.5; octx.strokeStyle = '#fff'; octx.strokeRect(a.x + 0.5, a.y + 0.5, a.w, a.h); octx.setLineDash([]); octx.lineDashOffset = 0
+    octx.lineWidth = 1
+    if (psel.mask && psel.w * psel.h <= 250000) {   // contorno de seleção com forma livre: só as bordas das células
+      const m = psel.mask, W = psel.w, H = psel.h, z0 = cam.zoom, o = w2s(psel.f.x + psel.x, psel.f.y + psel.y)
+      const path = new Path2D(), on = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && m[y * W + x] === 1
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (m[y * W + x]) {
+        const X = Math.round(o.x + x * z0) + 0.5, Y = Math.round(o.y + y * z0) + 0.5, X2 = Math.round(o.x + (x + 1) * z0) + 0.5, Y2 = Math.round(o.y + (y + 1) * z0) + 0.5
+        if (!on(x, y - 1)) { path.moveTo(X, Y); path.lineTo(X2, Y) }
+        if (!on(x, y + 1)) { path.moveTo(X, Y2); path.lineTo(X2, Y2) }
+        if (!on(x - 1, y)) { path.moveTo(X, Y); path.lineTo(X, Y2) }
+        if (!on(x + 1, y)) { path.moveTo(X2, Y); path.lineTo(X2, Y2) }
+      }
+      octx.setLineDash([4, 3]); octx.strokeStyle = '#000'; octx.stroke(path); octx.lineDashOffset = 3.5; octx.strokeStyle = '#fff'; octx.stroke(path); octx.setLineDash([]); octx.lineDashOffset = 0
+    } else { octx.setLineDash([5, 4]); octx.strokeStyle = '#000'; octx.strokeRect(a.x + 0.5, a.y + 0.5, a.w, a.h); octx.lineDashOffset = 4.5; octx.strokeStyle = '#fff'; octx.strokeRect(a.x + 0.5, a.y + 0.5, a.w, a.h); octx.setLineDash([]); octx.lineDashOffset = 0 }
     label(`${psel.w} × ${psel.h}`, a.x, a.y + a.h + 24, ACC_INK, ACC)
     if (S.tool === 'marquee') for (const h of pxHandles(psel)) { octx.fillStyle = '#fff'; octx.strokeStyle = '#000'; octx.lineWidth = 1; octx.fillRect(Math.round(h.x) - 4, Math.round(h.y) - 4, 8, 8); octx.strokeRect(Math.round(h.x) - 3.5, Math.round(h.y) - 3.5, 7, 7) }
+  }
+  if (mode === 'pxlasso' && S.sel && lassoPts.length > 1) {   // laço em andamento
+    octx.beginPath(); lassoPts.forEach((q, i) => { const a = w2s(S.sel!.x + q.x, S.sel!.y + q.y); i ? octx.lineTo(a.x, a.y) : octx.moveTo(a.x, a.y) })
+    octx.lineWidth = 1.5; octx.setLineDash([5, 4]); octx.strokeStyle = '#000'; octx.stroke(); octx.lineDashOffset = 4.5; octx.strokeStyle = '#fff'; octx.stroke(); octx.setLineDash([]); octx.lineDashOffset = 0
   }
   for (const n of doc.notes) drawNote(n)
   if (S.hover && hf && ['pencil', 'eraser', 'line', 'rect', 'ellipse'].includes(S.tool) && !S.spaceDown) {

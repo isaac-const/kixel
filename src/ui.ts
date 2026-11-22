@@ -23,10 +23,10 @@ const TOOLS: [string, string, string, string][] = [
 ]
 const DRAW = ['pencil', 'eraser', 'fill', 'picker', 'line', 'rect', 'ellipse']
 const HELP: [string, [string, string][]][] = [
-  ['Ferramentas', [['Selecionar', 'V'], ['Mão (ou segure Espaço)', 'H'], ['Lápis', 'B'], ['Borracha', 'E'], ['Balde', 'G'], ['Conta-gotas', 'I'], ['Linha', 'L'], ['Retângulo', 'U'], ['Elipse', 'O'], ['Seleção de pixels', 'M'], ['Quadro', 'F'], ['Contêiner', 'S'], ['Animação', 'A'], ['Nota', 'T']]],
+  ['Ferramentas', [['Selecionar', 'V'], ['Mão (ou segure Espaço)', 'H'], ['Lápis', 'B'], ['Borracha', 'E'], ['Balde', 'G'], ['Conta-gotas', 'I'], ['Linha', 'L'], ['Retângulo', 'U'], ['Elipse', 'O'], ['Seleção de pixels', 'M'], ['Laço', 'Q'], ['Varinha mágica', 'W'], ['Quadro', 'F'], ['Contêiner', 'S'], ['Animação', 'A'], ['Nota', 'T']]],
   ['Desenho', [['Pincel menor / maior', '[  ]'], ['Espelho horizontal', 'X'], ['Espelho vertical', 'Y'], ['Cor da paleta', '1 a 0'], ['Travar ângulo, quadrado, círculo', 'Shift'], ['Apagar com o botão direito', 'Lápis / Borracha']]],
   ['Quadros e seleção', [['Selecionar vários', 'Shift + clique'], ['Selecionar tudo', 'Ctrl+A'], ['Agrupar em contêiner', 'Ctrl+G'], ['Desagrupar', 'Ctrl+Shift+G'], ['Duplicar', 'Ctrl+D'], ['Copiar / Colar', 'Ctrl+C / V'], ['Renomear', 'F2'], ['Excluir', 'Delete'], ['Mover 1 pixel', 'Setas'], ['Sem grudar nas guias', 'Ctrl ao arrastar']]],
-  ['Seleção de pixels (M)', [['Esticar ou amassar', 'Arraste as alças'], ['Manter a proporção', 'Shift + alça'], ['Mover a seleção', 'Arrastar / setas'], ['Arrastar uma cópia', 'Alt + arrastar'], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Selecionar tudo / desmarcar', 'Ctrl+A / Ctrl+D']]],
+  ['Seleção de pixels (M)', [['Esticar ou amassar', 'Arraste as alças'], ['Manter a proporção', 'Shift + alça'], ['Mover a seleção', 'Arrastar / setas'], ['Arrastar uma cópia', 'Alt + arrastar'], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Selecionar tudo / desmarcar', 'Ctrl+A / Ctrl+D'], ['Inverter a seleção', 'Ctrl+Shift+I'], ['Laço, varinha mágica', 'Q, W'], ['Somar à seleção', 'Shift + clique']]],
   ['Ordem e forma', [['Trazer para frente', 'Ctrl+]'], ['Enviar para trás', 'Ctrl+['], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Ocultar', 'Ctrl+Shift+H'], ['Bloquear imagem', 'Ctrl+Shift+L']]],
   ['Tela', [['Ver tudo', 'Shift+1'], ['Ir até o quadro', 'Shift+2'], ['Zoom', 'Roda do mouse'], ['Mover a tela', 'Botão do meio / Espaço'], ['Menu do que está sob o cursor', 'Botão direito']]],
   ['Arquivo', [['Desfazer / Refazer', 'Ctrl+Z / Ctrl+Shift+Z'], ['Salvar projeto', 'Ctrl+S'], ['Abrir projeto', 'Ctrl+O'], ['Salva sozinho no navegador', 'a cada poucos segundos'], ['Esta ajuda', '?']]]
@@ -47,7 +47,7 @@ export function initUI(c: any): UI {
   for (const [id, , key, title] of TOOLS) { if (id === '-') { const sp = document.createElement('span'); sp.className = 'tsep'; tb.appendChild(sp); continue } const b = document.createElement('button'); b.dataset.tool = id; b.innerHTML = icon(id) + `<kbd translate="no">${key}</kbd>`; b.title = `${title} (${key})`; b.setAttribute('aria-label', title); b.onclick = () => core.setTool(id); tb.appendChild(b) }
   const toolCursor = (t: string) => (t === 'hand' ? 'grab' : ['pencil', 'eraser', 'fill', 'picker', 'frame', 'container', 'anim', 'note', 'line', 'rect', 'ellipse', 'marquee'].includes(t) ? 'crosshair' : 'default')
   function toolChanged(t: string) {
-    show('fillrow', t === 'rect' || t === 'ellipse'); show('onionrow', DRAW.includes(t))
+    show('fillrow', t === 'rect' || t === 'ellipse'); show('onionrow', DRAW.includes(t)); show('tolrow', t === 'fill'); ctxSync()
     for (const b of tb.querySelectorAll('button')) b.classList.toggle('on', (b as HTMLElement).dataset.tool === t)
     const d = TOOLS.find(x => x[0] === t); if (d) $('ctool').innerHTML = icon(t) + `<span>${d[1]}</span>`
     show('presets', t === 'frame'); show('props', t !== 'frame')
@@ -133,7 +133,14 @@ export function initUI(c: any): UI {
   function ctxSync() {
     setVal('cbrushin', String(S.brush)); setVal('copin', String(S.opacity))
     for (const b of document.querySelectorAll<HTMLElement>('.tgl[data-opt]')) b.setAttribute('aria-pressed', String(!!S.opt[b.dataset.opt as string]))
+    for (const b of document.querySelectorAll<HTMLElement>('#selmode [data-selmode]')) b.classList.toggle('on', b.dataset.selmode === S.selMode)
+    for (const r of document.querySelectorAll<HTMLInputElement>('input.tol')) r.value = String(S.tol)
+    for (const v of document.querySelectorAll<HTMLElement>('.tolv')) v.textContent = S.tol + '%'
+    $('selhint').textContent = S.selMode === 'wand' ? 'Clique numa cor para selecionar os pixels parecidos que se tocam. Shift soma, Alt pega todos do quadro.' : S.selMode === 'lasso' ? 'Arraste para contornar à mão. Shift soma à seleção.' : 'Arraste para selecionar um retângulo.'
+    show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill')
   }
+  for (const b of document.querySelectorAll<HTMLElement>('#selmode [data-selmode]')) b.onclick = () => { S.selMode = b.dataset.selmode; ctxSync(); core.invalidate() }
+  for (const r of document.querySelectorAll<HTMLInputElement>('input.tol')) r.oninput = () => { S.tol = Number(r.value); ctxSync() }
   // botões ligar/desligar (pixel perfect, espelho, zoom nítido, sombra do frame anterior, preencher formas)
   for (const b of document.querySelectorAll<HTMLButtonElement>('.tgl[data-opt]')) b.onclick = () => { const k = b.dataset.opt as string; S.opt[k] = !S.opt[k]; if (k === 'snap') core.snapZoom(); core.invalidate(); ctxSync() }
   // número editável: digitando, ou rolando o mouse com o ponteiro em cima
@@ -562,7 +569,7 @@ export function initUI(c: any): UI {
     show('s-frame', tabs && tab === 'quadro'); show('s-bg', tabs && tab === 'quadro'); show('s-layers', nF === 1 && tab === 'camadas')
     show('s-cont', !!k); show('s-ref', !!r); show('s-note', !!note)
     show('s-align', tabs && tab === 'quadro' && nF >= 2); show('s-sel', tabs && tab === 'cor')
-    show('s-color', none || (tabs && tab === 'cor') || (!tabs && draw)); show('s-tool', draw && (!tabs || tab === 'cor')); show('s-refadd', none); show('s-export', (tabs && tab === 'exportar'))
+    show('s-color', none || (tabs && tab === 'cor') || (!tabs && draw)); show('s-tool', draw && (!tabs || tab === 'cor')); show('s-psel', S.tool === 'marquee' && (!tabs || tab === 'cor')); show('s-refadd', none); show('s-export', (tabs && tab === 'exportar'))
     // árvore
     const key = `${doc.version}|${doc.zorder.length}|${[...selSet].map((x: Frame) => x.id).join(',')}|${S.selCont?.id ?? 0}|${S.selRef?.id ?? 0}`
     if (key !== treeKey && !document.querySelector('#tree input.ren')) { treeKey = key; buildTree() }

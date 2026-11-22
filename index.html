@@ -145,7 +145,14 @@
       </section>
 
       <section id="s-tool"><h4>Ferramenta</h4>
+        <label class="slide" id="tolrow"><span>Tolerância do balde</span><input class="tol" type="range" min="0" max="100" value="0" title="Quanto uma cor pode diferir para o balde ainda pintar" /><b class="tolv">0%</b></label>
         <div class="tgrid"><button class="tgl" data-opt="pp" data-icon="wandsp" aria-pressed="true" title="Pixel perfect: tira os cantos em L do traço">Pixel perfect</button><button class="tgl" data-opt="mirror" data-icon="flip" aria-pressed="false" title="Espelho: o que você desenha aparece também do outro lado do quadro (tecla X)">Espelho horizontal</button><button class="tgl" data-opt="mirrorY" data-icon="flip" aria-pressed="false" title="Espelho vertical: o que você desenha aparece também em cima e embaixo (tecla Y)">Espelho vertical</button><button class="tgl" data-opt="round" data-icon="ellipse" aria-pressed="false" title="Pincel redondo: tira os cantos do pincel (a partir de 3 px)">Pincel redondo</button><button class="tgl" data-opt="fillAll" data-icon="fill" aria-pressed="false" title="Balde em todo o quadro: troca todos os pixels da mesma cor, mesmo os que não se tocam">Balde global</button><button id="onionrow" class="tgl" data-opt="onion" data-icon="ghost" aria-pressed="false" title="Sombra do frame anterior: mostra o frame anterior da animação em transparência, para guiar o desenho">Sombra do frame anterior</button><button id="fillrow" class="tgl" data-opt="fill" data-icon="fill" aria-pressed="false" title="Preencher formas: retângulo e elipse saem cheios">Preencher formas</button></div>
+      </section>
+
+      <section id="s-psel"><h4>Seleção</h4>
+        <div class="seg" id="selmode" role="tablist"><button data-selmode="rect" class="on" title="Retângulo (M)">Retângulo</button><button data-selmode="lasso" title="Laço: desenhe o contorno à mão (Q)">Laço</button><button data-selmode="wand" title="Varinha: seleciona pixels de cor parecida (W)">Varinha</button></div>
+        <label class="slide" id="tolrow2"><span>Tolerância</span><input class="tol" type="range" min="0" max="100" value="0" /><b class="tolv">0%</b></label>
+        <p class="hint" id="selhint"></p>
       </section>
 
       <section id="s-refadd"><h4>Referências</h4>

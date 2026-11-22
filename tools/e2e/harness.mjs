@@ -20,6 +20,6 @@ export async function open({ lang, w = 1440, h = 900, frame = true } = {}) {
   const drag = async (x0, y0, x1, y1, steps = 5) => { const a = await scr(x0, y0), c = await scr(x1, y1); await pg.mouse.move(a.x, a.y); await pg.mouse.down(); await pg.mouse.move(c.x, c.y, { steps }); await pg.mouse.up() }
   const click = async (x, y) => { const p = await scr(x + .5, y + .5); await pg.mouse.move(p.x, p.y); await pg.mouse.down(); await pg.mouse.up() }
   const sel = () => pg.evaluate(() => { const p = __app.psel; return p && { x: p.x, y: p.y, w: p.w, h: p.h } })
-  const done = async () => { const miss = await pg.evaluate(() => window.__i18n?.missing?.() ?? []); await b.close(); console.log('erros:', errs, 'sem tradução:', miss.length); return { errs, miss } }
+  const done = async () => { const miss = await pg.evaluate(() => window.__i18n?.missing?.() ?? []); await b.close(); console.log('erros:', errs, 'sem tradução:', miss.length, miss.length ? JSON.stringify(miss) : ''); return { errs, miss } }
   return { b, pg, errs, scr, px, count, drag, click, sel, done }
 }

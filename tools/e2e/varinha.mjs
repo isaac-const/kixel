@@ -1,0 +1,36 @@
+import { open, ok } from './harness.mjs'
+const t = await open({ lang: process.argv[2] })
+const { pg, px, count, drag, click, scr } = t
+await pg.evaluate(() => { const a = __app, f = [...a.doc.frames.values()].find(g => g.name === 'T'), buf = a.doc.activeBuf(f)
+  for (let y = 2; y < 6; y++) for (let x = 2; x < 6; x++) buf.set([255, 0, 0, 255], (y * 16 + x) * 4)
+  buf.set([0, 0, 255, 255], (2 * 16 + 2) * 4); a.doc.composite(f, 0, 0, 16, 16); a.R.upload(a.doc, f) })
+await pg.keyboard.press('w'); await pg.waitForTimeout(150)
+await click(4, 4)
+let s = await t.sel(); ok('varinha seleciona o vermelho (4x4, sem o azul)', s && s.w === 4 && s.h === 4 && await pg.evaluate(() => __app.psel.mask && __app.psel.mask[0] === 0 && __app.psel.mask[1] === 1), JSON.stringify(s))
+await pg.screenshot({ path: '/tmp/shots/v12-wand.png' })
+// mover só os pixels da máscara: arrasta de (4,4) para (10,4)
+await drag(4.5, 4.5, 10.5, 4.5, 6)
+ok('o azul ficou para trás, 15 vermelhos andaram', (await px(2, 2)).join() === '0,0,255,255' && (await px(8, 4))[3] === 255 && (await px(4, 4))[3] === 0 && (await count()) === 16, String(await count()))
+await pg.keyboard.press('Control+z')   // desfaz só o movimento (um segundo Ctrl+Z desfaria a criação do quadro)
+// global e soma
+await pg.keyboard.press('w'); await click(2, 2)
+await pg.keyboard.down('Shift'); await click(10, 10); await pg.keyboard.up('Shift')
+ok('Shift soma (azul + transparente)', (await t.sel()).w > 4)
+// tolerância 100 pega tudo
+await pg.evaluate(() => { __app.S.tol = 100; __app.ui.ctxSync() }); await pg.keyboard.press('Escape'); await click(3, 3)
+s = await t.sel(); ok('tolerância 100 seleciona o quadro todo', s && s.w === 16 && s.h === 16, JSON.stringify(s))
+await pg.evaluate(() => { __app.S.tol = 0; __app.ui.ctxSync() })
+// laço: triângulo (1,1) (8,1) (1,8)
+await pg.keyboard.press('Escape'); await pg.keyboard.press('q')
+const a = await scr(1, 1), b2 = await scr(9, 1), c = await scr(1, 9)
+await pg.mouse.move(a.x, a.y); await pg.mouse.down(); await pg.mouse.move(b2.x, b2.y, { steps: 6 }); await pg.mouse.move(c.x, c.y, { steps: 6 }); await pg.mouse.move(a.x, a.y + 3, { steps: 6 }); await pg.screenshot({ path: '/tmp/shots/v12-lasso-live.png' }); await pg.mouse.up()
+s = await t.sel(); const n = await pg.evaluate(() => __app.psel && __app.psel.mask ? __app.psel.mask.reduce((x, y) => x + y, 0) : -1)
+ok('laço triangular seleciona cerca de metade de 8x8', s && s.w >= 7 && n > 25 && n < 45, JSON.stringify(s) + ' px=' + n)
+await pg.screenshot({ path: '/tmp/shots/v12-lasso.png' })
+// inverter
+await pg.keyboard.press('Control+Shift+i'); const m2 = await pg.evaluate(() => __app.psel && __app.psel.mask ? __app.psel.mask.reduce((x, y) => x + y, 0) : -1)
+ok('inverter: seleção + inversa = 256', Math.abs(m2 + n - 256) <= 0, `${m2}+${n}`)
+// balde com tolerância
+await pg.keyboard.press('Escape'); await pg.keyboard.press('g'); await pg.evaluate(() => { __app.S.tol = 0; __app.S.color = [0, 255, 0, 255] }); await click(14, 14)
+ok('balde preenche vazio', (await count()) === 256 - 0 || (await count()) > 200)
+await t.done()

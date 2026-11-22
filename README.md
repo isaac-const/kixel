@@ -105,6 +105,10 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Seleção de pixels:** 8 alças para esticar ou amassar (vizinho mais próximo, pixels nítidos). Shift mantém a proporção nos cantos e passar da borda oposta espelha. Shift+H e Shift+V espelham, Shift+R gira 90°, as setas movem 1 px (Shift: 8 px), Alt+arrastar leva uma cópia, Ctrl+A seleciona o quadro todo e Ctrl+D desmarca. O botão direito mostra tudo isso em um menu.
 - **Desenho:** espelho vertical (Y), pincel redondo e balde global (troca todos os pixels da mesma cor no quadro).
 
+## v12: laço, varinha mágica e tolerância
+- **Seleção por máscara:** além do retângulo, o laço (Q) contorna à mão e a varinha (W) pega pixels de cor parecida (Shift soma, Alt pega todos do quadro). Mover, esticar, girar e copiar respeitam o formato. Ctrl+Shift+I inverte. O modo fica na seção "Seleção" do painel.
+- **Tolerância:** controla o quanto uma cor pode diferir, na varinha e no balde.
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 
