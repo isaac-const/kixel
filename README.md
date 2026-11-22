@@ -1,6 +1,6 @@
 # Kixel
 
-Editor de pixel art em tela infinita (nome provisório): vários quadros, contêineres, camadas, referências, notas, animação com player, exportação (PNG, .aseprite, sprite sheet, SVG, GIF, Godot), espaços de trabalho e tradução em português, inglês e espanhol. Protótipo em TypeScript, WebGL2 e Vite.
+Editor de pixel art em tela infinita: vários quadros, contêineres, camadas, referências, notas, animação com player, exportação (PNG, .aseprite, sprite sheet, SVG, GIF, Godot), espaços de trabalho e tradução em português, inglês e espanhol. Feito com TypeScript, WebGL2 e Vite.
 
 ## Como rodar
 ```bash
