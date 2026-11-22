@@ -1,6 +1,6 @@
-# Kixel · protótipo de tela infinita (nome provisório)
+# Kixel
 
-Teste de velocidade de um editor de pixel art em tela infinita, com vários quadros pequenos (16×16, 32×32, 64×64), referências de imagem, desfazer e gestos de toque. Não é o produto final: é para provar o desempenho antes de investir mais.
+Editor de pixel art em tela infinita (nome provisório): vários quadros, contêineres, camadas, referências, notas, animação com player, exportação (PNG, .aseprite, sprite sheet, SVG, GIF, Godot), espaços de trabalho e tradução em português, inglês e espanhol. Protótipo em TypeScript, WebGL2 e Vite.
 
 ## Como rodar
 ```bash
