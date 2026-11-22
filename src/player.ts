@@ -11,9 +11,24 @@ export type PlayerCtx = {
   reorder(k: Cont, ids: number[] | undefined): void; pick(f: Frame): void; setDur(f: Frame, ms: number | undefined): void
 }
 const clampSpeed = (v: number) => Math.max(0.1, Math.min(10, Math.round(v * 100) / 100))
-type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLInputElement; durIn: HTMLInputElement; durLbl: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string }
+type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLInputElement; durIn: HTMLInputElement; durLbl: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string; vh: number }
 
+/** Faixa livre da tela: abaixo das barras do topo e acima da barra de ferramentas (ou da paleta, no celular). */
+const BARS = ['ctx', 'zoombox', 'mtop', 'tools', 'palette2']
 export function initPlayers(c: PlayerCtx) {
+  let safe = { top: 8, bottom: 600 }, safeAt = 0
+  function safeZone(now: number, st: { w: number; h: number }) {
+    if (now - safeAt < 400 && safe.bottom > 0) return safe
+    safeAt = now
+    const sr = c.stage.getBoundingClientRect(); let top = 8, bottom = st.h - 8
+    for (const id of BARS) {
+      const e = document.getElementById(id); if (!e) continue
+      const r = e.getBoundingClientRect(); if (!r.width || !r.height) continue
+      const t = r.top - sr.top, bt = r.bottom - sr.top
+      if (bt < st.h / 2) top = Math.max(top, bt + 8); else bottom = Math.min(bottom, t - 8)
+    }
+    safe = { top, bottom: Math.max(top + 120, bottom) }; return safe
+  }
   const layer = document.createElement('div'); layer.id = 'players'; c.stage.append(layer)
   const map = new Map<number, P>()
   const cont = (id: number) => c.doc.conts.get(id)
@@ -33,7 +48,7 @@ export function initPlayers(c: PlayerCtx) {
       <div class="aspd adur"><span class="dl">Duração do frame</span><label class="dv" title="Quanto tempo este frame fica na tela. Vazio usa o FPS."><input type="number" min="10" step="5" aria-label="Duração do frame em milissegundos" /><i>ms</i></label></div>`
     layer.append(el)
     const q = (s: string) => el.querySelector(s) as HTMLElement
-    const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.sv input') as HTMLInputElement, durIn: q('.dv input') as HTMLInputElement, durLbl: q('.dl'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '' }
+    const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.sv input') as HTMLInputElement, durIn: q('.dv input') as HTMLInputElement, durLbl: q('.dl'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '', vh: 0 }
     const step = (d: number) => { const k2 = cont(k.id); if (!k2) return; const n = c.animFrames(k2).length; if (!n) return; k2.paused = true; p.idx = (p.idx + d + n) % n; p.t = performance.now(); p.key = ''; c.touch() }
     q('.prev').onclick = () => step(-1); q('.next').onclick = () => step(1)
     p.play.onclick = () => { const k2 = cont(k.id); if (k2) { k2.paused = !k2.paused; p.t = performance.now(); c.touch() } }
@@ -96,7 +111,7 @@ export function initPlayers(c: PlayerCtx) {
       if (sizeKey !== p.sizeKey) {
         p.sizeKey = sizeKey; p.el.classList.toggle('world', world)
         if (world && f) { const pw = Math.max(40, Math.round(f.w * z)), ph = Math.max(40, Math.round(f.h * z)); p.view.style.width = pw + 'px'; p.view.style.height = ph + 'px'; p.el.style.width = Math.max(224, pw + 20) + 'px' }
-        else { p.view.style.width = ''; p.view.style.height = ''; p.el.style.width = '' }
+        else { p.view.style.width = ''; p.view.style.height = ''; p.el.style.width = ''; p.vh = 0 }
       }
       p.w = p.el.offsetWidth; p.h = p.el.offsetHeight
       // posição: ao lado do contêiner (à direita; senão à esquerda; senão acima); nunca sai da tela no modo fixo
@@ -105,12 +120,16 @@ export function initPlayers(c: PlayerCtx) {
       let left: number, top: number
       if (world) { left = br.x + 4 * z + 6; top = tl.y }
       else {
-        top = Math.max(8, Math.min(tl.y, st.h - p.h - 8))
+        const sz = safeZone(now, st)
+        // se a tela é baixa, o preview encolhe para o player inteiro caber entre as barras
+        const fixed = p.h - p.view.offsetHeight, vh = Math.max(56, Math.min(160, sz.bottom - sz.top - fixed))
+        if (p.vh !== vh) { p.vh = vh; p.view.style.height = vh + 'px'; p.h = p.el.offsetHeight }
+        top = Math.max(sz.top, Math.min(tl.y, sz.bottom - p.h))
         if (br.x + 12 + p.w <= st.w - 8) left = br.x + 12
         else if (tl.x - p.w - 12 >= 8) left = tl.x - p.w - 12
-        else if (tl.y - p.h - 10 >= 8) { left = tl.x; top = tl.y - p.h - 10 }
+        else if (tl.y - p.h - 10 >= sz.top) { left = tl.x; top = tl.y - p.h - 10 }
         else left = st.w - p.w - 12
-        left = Math.max(8, Math.min(left, st.w - p.w - 8)); top = Math.max(8, Math.min(top, st.h - p.h - 8))
+        left = Math.max(8, Math.min(left, st.w - p.w - 8)); top = Math.max(sz.top, Math.min(top, sz.bottom - p.h))
       }
       const pos = off ? 'off' : `${Math.round(left)},${Math.round(top)}`
       if (pos !== p.pos) { p.pos = pos; p.el.style.display = off ? 'none' : ''; p.el.style.transform = `translate(${Math.round(left)}px,${Math.round(top)}px)` }
