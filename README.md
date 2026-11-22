@@ -101,6 +101,10 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Git:** o projeto agora é um repositório; cada funcionalidade nova entra em um commit.
 - **Celular:** o player começa compacto (▾ mostra o resto); toque longo (550 ms) abre o menu do que está sob o dedo; as gavetas Camadas e Painel têm botão X. Em celular deitado a tela fica apertada e o player pode encostar na faixa de cores.
 
+## v11: transformar a seleção e novas opções de desenho
+- **Seleção de pixels:** 8 alças para esticar ou amassar (vizinho mais próximo, pixels nítidos). Shift mantém a proporção nos cantos e passar da borda oposta espelha. Shift+H e Shift+V espelham, Shift+R gira 90°, as setas movem 1 px (Shift: 8 px), Alt+arrastar leva uma cópia, Ctrl+A seleciona o quadro todo e Ctrl+D desmarca. O botão direito mostra tudo isso em um menu.
+- **Desenho:** espelho vertical (Y), pincel redondo e balde global (troca todos os pixels da mesma cor no quadro).
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 

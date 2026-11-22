@@ -27,7 +27,7 @@ const S = {
   color: hex2rgba(PALETTE[3]), tool: 'pencil', brush: 1,
   sel: null as Frame | null, selRef: null as Ref | null, selCont: null as Cont | null, selNote: null as Note | null,
   lastSel: null as Frame | null, hover: null as { wx: number; wy: number } | null, spaceDown: false,
-  opacity: 100, opt: { mirror: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
+  opacity: 100, opt: { mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
   mine: (() => { try { const v = JSON.parse(store.get('kixel-mine') || 'null'); return Array.isArray(v) ? v as string[] : PALETTE.slice(0, 8) } catch { return PALETTE.slice(0, 8) } })()
 }
 const selSet = new Set<Frame>()
@@ -171,16 +171,25 @@ function setPx(s: Stroke, x: number, y: number, c: number[]) {
   }
   if (x < s.minx) s.minx = x; if (y < s.miny) s.miny = y; if (x > s.maxx) s.maxx = x; if (y > s.maxy) s.maxy = y
 }
+/** Posições do pixel e dos seus espelhos (horizontal e/ou vertical, em volta do centro do quadro). */
+function mirrored(f: Frame, x: number, y: number): { x: number; y: number }[] {
+  const out = [{ x, y }]
+  if (S.opt.mirror) out.push({ x: f.w - 1 - x, y })
+  if (S.opt.mirrorY) { out.push({ x, y: f.h - 1 - y }); if (S.opt.mirror) out.push({ x: f.w - 1 - x, y: f.h - 1 - y }) }
+  return out
+}
 function stamp(s: Stroke, x: number, y: number) {
   const c = s.erase ? [0, 0, 0, 0] : S.color, half = Math.floor((S.brush - 1) / 2)
-  for (let j = 0; j < S.brush; j++) for (let i = 0; i < S.brush; i++) {
+  const n = S.brush, r2 = (n / 2) ** 2 + 0.01
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    if (S.opt.round && n > 2 && (i + 0.5 - n / 2) ** 2 + (j + 0.5 - n / 2) ** 2 > r2) continue   // pincel redondo: tira os cantos
     const px = x - half + i, py = y - half + j
-    setPx(s, px, py, c); if (S.opt.mirror) setPx(s, s.f.w - 1 - px, py, c)
+    for (const q of mirrored(s.f, px, py)) setPx(s, q.x, q.y, c)
   }
 }
 function restorePx(s: Stroke, x: number, y: number) {
   const f = s.f, put = (px: number, py: number) => { if (px < 0 || py < 0 || px >= f.w || py >= f.h) return; const o = (py * f.w + px) * 4; s.buf.set(s.before.subarray(o, o + 4), o) }
-  put(x, y); if (S.opt.mirror) put(f.w - 1 - x, y)
+  for (const q of mirrored(f, x, y)) put(q.x, q.y)
 }
 function bresenham(x0: number, y0: number, x1: number, y1: number, cb: (x: number, y: number) => void) {
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1
@@ -228,6 +237,10 @@ function floodFill(f: Frame, x: number, y: number) {
   const buf = s.buf, o0 = (y * f.w + x) * 4, t = [buf[o0], buf[o0 + 1], buf[o0 + 2], buf[o0 + 3]], c = S.color
   if (t[0] === c[0] && t[1] === c[1] && t[2] === c[2] && t[3] === 255) return
   const same = (i: number) => buf[i] === t[0] && buf[i + 1] === t[1] && buf[i + 2] === t[2] && buf[i + 3] === t[3]
+  if (S.opt.fillAll) {   // mesma cor em todo o quadro, mesmo sem encostar
+    for (let yy = 0; yy < f.h; yy++) for (let xx = 0; xx < f.w; xx++) if (same((yy * f.w + xx) * 4)) setPx(s, xx, yy, c)
+    stroke = s; commitStroke(); edited(s); return
+  }
   const st = [x, y]
   while (st.length) {
     const cy = st.pop()!, cx = st.pop()!
@@ -1543,6 +1556,7 @@ window.addEventListener('keydown', e => {
   const map: Record<string, string> = { l: 'line', u: 'rect', o: 'ellipse', m: 'marquee', v: 'select', b: 'pencil', e: 'eraser', g: 'fill', i: 'picker', h: 'hand', f: 'frame', s: 'container', a: 'anim', t: 'note' }
   if (!mod && map[k]) { setTool(map[k]); return }
   if (k === 'x') { S.opt.mirror = !S.opt.mirror; ui.ctxSync(); toast('Espelho ' + (S.opt.mirror ? 'ligado' : 'desligado')); return }
+  if (k === 'y') { S.opt.mirrorY = !S.opt.mirrorY; ui.ctxSync(); toast('Espelho vertical ' + (S.opt.mirrorY ? 'ligado' : 'desligado')); return }
   if (k === '[') { S.brush = Math.max(1, S.brush - 1); ui.ctxSync(); toast('Pincel ' + S.brush + '×' + S.brush); return }
   if (k === ']') { S.brush = Math.min(32, S.brush + 1); ui.ctxSync(); toast('Pincel ' + S.brush + '×' + S.brush); return }
   if (/^[0-9]$/.test(e.key)) { const i = e.key === '0' ? 9 : Number(e.key) - 1, pal = paletteOf(S.sel ?? S.lastSel); if (pal[i]) setColor(hex2rgba(pal[i])); return }
