@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#18191e" />
+<title>Kixel · protótipo</title>
+<link rel="icon" type="image/svg+xml" href="/mark.svg" />
+<link rel="stylesheet" href="/src/style.css" />
+</head>
+<body data-view="home">
+<div id="home" hidden></div>
+<div id="app">
+  <aside id="left" class="side">
+    <div class="hd">
+      <button id="homebtn" class="homebtn" title="Menu do Kixel" aria-label="Menu do Kixel" aria-haspopup="menu"><img class="logo" src="/logo.svg" alt="Kixel" height="26" /><span class="chev" data-icon="chevd"></span></button>
+      <input id="wsname" class="wsname" value="Sem título" maxlength="60" spellcheck="false" aria-label="Nome do espaço de trabalho" />
+      <div class="hrow"><small id="savestat">salvo neste navegador</small></div>
+    </div>
+    <div class="lhead"><h4>Camadas <span id="lcount"></span></h4><div class="lbtns"><button id="addnote" data-icon="note" title="Nova nota (T)" aria-label="Nova nota"></button><button id="addanim" data-icon="film" title="Nova animação (A): arraste sobre os quadros, ou selecione quadros antes" aria-label="Nova animação"></button><button id="addcont" data-icon="folder" title="Novo contêiner (S)" aria-label="Novo contêiner"></button><input id="projfile" type="file" accept=".kixel,application/octet-stream,application/json" hidden /></div></div>
+    <div id="tree" class="list" role="tree" aria-label="Camadas do documento"></div>
+  </aside>
+
+  <main id="stage">
+    <canvas id="gl" aria-label="Tela infinita"></canvas>
+    <canvas id="ov"></canvas>
+    <div id="ctx" role="toolbar" aria-label="Contexto">
+      <button id="undo" data-icon="undo" title="Desfazer (Ctrl+Z)" aria-label="Desfazer"></button>
+      <button id="redo" data-icon="redo" title="Refazer (Ctrl+Shift+Z)" aria-label="Refazer"></button>
+      <span class="sep"></span>
+      <span id="ctool" class="chip on"></span>
+      <label class="nf" id="nfbrush" title="Tamanho do pincel: digite, ou role o mouse sobre o número ([ e ] também mudam)"><span data-icon="brush"></span><input id="cbrushin" type="number" min="1" max="32" value="1" aria-label="Tamanho do pincel em pixels" /><em>px</em></label>
+      <label class="nf" id="nfop" title="Opacidade do pincel: digite, ou role o mouse sobre o número (Shift muda de 1 em 1)"><span data-icon="droplet"></span><input id="copin" type="number" min="1" max="100" value="100" aria-label="Opacidade do pincel em porcentagem" /><em>%</em></label>
+      <button id="cpp" class="tgl top" data-opt="pp" data-icon="wandsp" aria-pressed="true" aria-label="Pixel perfect" title="Pixel perfect: tira os cantos em L do traço. Clique para ligar ou desligar"></button>
+    </div>
+    <div id="zoombox">
+      <button id="zout" data-icon="zout" aria-label="Menos zoom"></button><span id="zlabel">100%</span><button id="zin" data-icon="zin" aria-label="Mais zoom"></button><button id="fit" data-icon="fit" title="Ver tudo (Shift+1)" aria-label="Ver tudo"></button>
+    </div>
+    <div id="mtop"><button data-sheet="left" data-icon="frames">Camadas</button><button data-sheet="right" data-icon="panel">Painel</button></div>
+    <nav id="tools" aria-label="Ferramentas"></nav>
+    <div id="palette2" class="pal" aria-label="Paleta"></div>
+    <div id="empty" hidden><b>Tela vazia</b><span>Aperte <kbd>F</kbd> e arraste na tela para criar um quadro, ou escolha um tamanho pronto.</span><button id="emptygo" class="primary" data-icon="frame">Criar quadro</button></div>
+    <div id="toast" role="status"></div>
+  </main>
+
+  <aside id="right" class="side">
+    <div id="presets" hidden>
+      <section><h4>Novo quadro</h4>
+        <p class="hint">Escolha um tamanho, ou arraste na tela para desenhar o quadro do tamanho que quiser.</p>
+        <div class="row"><label class="f"><i>L</i><input id="fw" type="number" min="1" max="2048" value="16" /></label><label class="f"><i>A</i><input id="fh" type="number" min="1" max="2048" value="16" /></label></div>
+        <div class="row"><button id="fcreate" class="primary" data-icon="plus">Criar quadro</button></div>
+      </section>
+      <div id="pgroups"></div>
+    </div>
+
+    <div id="props">
+      <div id="tabs" class="tabs2" role="tablist" hidden><button data-tab="cor" class="on">Cor</button><button data-tab="quadro">Quadro</button><button data-tab="camadas">Camadas</button><button data-tab="exportar">Exportar</button></div>
+      <section id="s-align"><h4>Alinhar</h4>
+        <div class="ibar"><button data-al="l" data-icon="alignl" title="Alinhar à esquerda" aria-label="Alinhar à esquerda"></button><button data-al="ch" data-icon="alignch" title="Centralizar na horizontal" aria-label="Centralizar na horizontal"></button><button data-al="r" data-icon="alignr" title="Alinhar à direita" aria-label="Alinhar à direita"></button><button data-al="t" data-icon="alignt" title="Alinhar ao topo" aria-label="Alinhar ao topo"></button><button data-al="cv" data-icon="aligncv" title="Centralizar na vertical" aria-label="Centralizar na vertical"></button><button data-al="b" data-icon="alignb" title="Alinhar à base" aria-label="Alinhar à base"></button></div>
+        <div class="ibar"><button data-di="h" data-icon="disth" title="Distribuir na horizontal (3 ou mais)">Espaço igual</button><button data-di="v" data-icon="distv" title="Distribuir na vertical (3 ou mais)">Espaço igual</button></div>
+      </section>
+
+      <section id="s-frame"><h4 id="qtitle">Quadro</h4>
+        <label class="f"><i>Nome</i><input id="fname" spellcheck="false" /></label>
+        <div class="g4"><label class="f m"><i>X</i><input id="px" type="number" step="1" /></label><label class="f m"><i>Y</i><input id="py" type="number" step="1" /></label><label class="f m"><i>L</i><input id="pw" type="number" min="1" max="2048" /></label><label class="f m"><i>A</i><input id="ph" type="number" min="1" max="2048" /></label></div>
+        <label class="f" id="durrow" hidden><i>Duração no GIF (ms)</i><input id="fdur" type="number" min="10" step="10" placeholder="padrão" /></label>
+        <div class="ibar"><button id="dup" data-icon="dup" title="Duplicar (Ctrl+D)" aria-label="Duplicar"></button><button id="group" data-icon="group" title="Agrupar em contêiner (Ctrl+G)" aria-label="Agrupar"></button><button id="mkanim" data-icon="film" title="Criar animação com os quadros selecionados" aria-label="Criar animação"></button><button id="del" data-icon="del" title="Excluir (Delete)" aria-label="Excluir"></button></div>
+      </section>
+
+      <section id="s-cont"><h4>Contêiner</h4>
+        <p class="hint">Guarda quadros juntos. Arrastar o contêiner move todos os quadros dentro dele.</p>
+        <div class="row"><label class="f"><i>Nome</i><input id="cname" spellcheck="false" /></label></div>
+        <div class="row"><label class="f"><i>X</i><input id="cx" type="number" step="1" /></label><label class="f"><i>Y</i><input id="cy" type="number" step="1" /></label></div>
+        <div class="row"><label class="f"><i>L</i><input id="cw" type="number" min="8" /></label><label class="f"><i>A</i><input id="ch" type="number" min="8" /></label></div>
+        <div class="row"><button id="cfit" data-icon="fitc">Ajustar ao conteúdo</button></div>
+        <div id="animbox"><h4 class="sub">Animação</h4>
+          <button id="animtoggle" class="tgl wide" data-icon="film" aria-pressed="false" title="Mostra, ao lado do contêiner, um player que toca em loop os quadros que estão dentro dele">Player na tela</button>
+          <p id="animnote" class="hint"></p>
+          <div id="animopts">
+            <div class="row"><label class="f m"><i>FPS</i><input id="fps" type="number" min="1" max="60" value="8" /></label><label class="f m"><i>Escala</i><select id="gifscale"><option value="auto">Auto</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></label></div>
+            <div class="row"><button id="animnew" data-icon="plus">Novo frame (cópia do último)</button></div>
+            <div class="row" id="orderrow" hidden><button id="animorder" data-icon="up" title="Desfaz a ordem que você montou e volta a usar a posição na tela">Ordem pela posição na tela</button></div>
+            <div class="row"><button id="gifout" class="primary" data-icon="download">Baixar GIF</button><button id="aseanim" data-icon="code" title="Exportar .aseprite com os frames">.aseprite</button></div>
+            <div class="row"><button id="godotout" data-icon="code" title="Gera a imagem (sprite sheet) e o arquivo SpriteFrames (.tres) para usar no Godot">Exportar para Godot</button></div>
+          </div>
+        </div>
+        <div class="row"><button id="cungroup" data-icon="ungroup">Desagrupar</button></div>
+      </section>
+
+      <section id="s-note"><h4>Nota</h4>
+        <p class="hint">Texto solto na tela para organizar ideias. Arraste, redimensione pelas alças e dê duplo clique para escrever. Escala com o zoom, como as imagens.</p>
+        <textarea id="ntext" rows="5" spellcheck="false" placeholder="Escreva aqui..."></textarea>
+        <div id="ncolors" class="ncolors"></div>
+        <div class="g4"><label class="f m"><i>L</i><input id="nw" type="number" min="4" /></label><label class="f m"><i>A</i><input id="nh" type="number" min="4" /></label><label class="f m" style="grid-column:span 2"><i>Texto</i><input id="nsize" type="number" min="0.1" step="0.1" /></label></div>
+        <div class="row"><button id="ndel" data-icon="del">Excluir nota</button></div>
+      </section>
+
+      <section id="s-ref"><h4>Imagem de referência</h4>
+        <div class="seg" id="rtabs" role="tablist"><button data-rtab="img" class="on">Imagem</button><button data-rtab="use">Usar no desenho</button></div>
+        <div id="r-img">
+          <label class="f"><i>Nome</i><input id="rname" spellcheck="false" /></label>
+          <label class="slide"><span>Opacidade</span><input id="refop" type="range" min="5" max="100" value="100" /><b id="refopv">100%</b></label>
+          <div class="tgrid"><button id="reflock" class="tgl" data-icon="lock" aria-pressed="false" title="Bloquear: a imagem não move sem querer">Bloquear</button><button id="refabove" class="tgl" data-icon="layers" aria-pressed="false" title="Mostra a imagem na frente dos quadros, em vez de atrás">Na frente dos quadros</button></div>
+          <div class="ibar sp"><button id="refpin" data-icon="pin" title="Fixar na tela: abre uma janela flutuante que não muda com o zoom" aria-label="Fixar na tela"></button><button id="refdel" data-icon="del" title="Excluir imagem" aria-label="Excluir imagem"></button></div>
+        </div>
+        <div id="r-use" hidden>
+          <div class="arow"><button id="reffit" data-icon="decal"><span class="tx"><b>Calcar no quadro</b><small>Encaixa a imagem atrás do quadro selecionado</small></span></button></div>
+          <div class="arow"><button id="refpix" data-icon="pixelate"><span class="tx"><b>Reduzir para pixels</b><small>Vira pixel art com a paleta do quadro</small></span></button></div>
+          <details class="acc"><summary><span data-icon="frame"></span>Fatiar em quadros</summary>
+            <p class="hint">Corta a imagem numa grade e cria um quadro por célula (sprite sheet).</p>
+            <div class="row"><label class="f m"><i>L</i><input id="slw" type="number" value="16" min="1" /></label><label class="f m"><i>A</i><input id="slh" type="number" value="16" min="1" /></label></div>
+            <button id="sltrim" class="tgl" data-icon="eye" aria-pressed="true" title="Não cria quadro para células sem nenhum pixel">Pular células vazias</button>
+            <div class="row" style="margin-top:8px"><button id="slgo" class="primary" data-icon="frame">Fatiar</button></div>
+          </details>
+          <details class="acc"><summary><span data-icon="pixelate"></span>Extrair paleta</summary>
+            <p class="hint">Pega as cores mais usadas da imagem e guarda em "Minha paleta".</p>
+            <div class="row"><label class="f m"><i>Cores</i><input id="xn" type="number" value="16" min="2" max="64" /></label><button id="xgo" class="primary" data-icon="pixelate">Extrair</button></div>
+          </details>
+        </div>
+      </section>
+
+      <section id="s-bg"><h4>Fundo do quadro</h4>
+        <div class="row"><button id="fbg" class="swbtn" aria-label="Cor de fundo" title="Escolher a cor de fundo"></button><button id="fbgnone">Transparente</button></div>
+        <div id="bgsw" class="pal small"></div>
+      </section>
+
+      <section id="s-layers"><h4>Camadas do quadro</h4>
+        <div id="llist" class="llist"></div>
+        <label class="slide"><span>Opacidade</span><input id="lop" type="range" min="0" max="100" value="100" /><b id="lopv">100%</b></label>
+        <div class="ibar"><button id="ladd" data-icon="plus" title="Nova camada" aria-label="Nova camada"></button><button id="ldup" data-icon="dup" title="Duplicar camada" aria-label="Duplicar camada"></button><button id="lup" data-icon="up" title="Subir" aria-label="Subir camada"></button><button id="ldown" data-icon="down" title="Descer" aria-label="Descer camada"></button><button id="lmerge" data-icon="merge" title="Mesclar com a camada de baixo" aria-label="Mesclar com a camada de baixo"></button><button id="ldel" data-icon="del" title="Excluir camada" aria-label="Excluir camada"></button></div>
+      </section>
+
+      <section id="s-color"><h4 id="ctitle">Cor</h4>
+        <div class="row"><select id="palsel" aria-label="Paleta"></select><button id="palimport" title="Importar paleta (.gpl, .hex, .pal, .txt)" aria-label="Importar paleta" data-icon="upload"></button><input id="palfile" type="file" accept=".gpl,.hex,.pal,.txt,text/plain" hidden /><button id="paladd" title="Guardar a cor atual em Minha paleta" aria-label="Guardar a cor atual em Minha paleta" data-icon="plus"></button></div>
+        <div id="palette" class="pal" aria-label="Cores da paleta"></div>
+        <div class="row cur"><button id="cpick" class="swbtn" aria-label="Seletor de cor" title="Abrir o seletor de cor"></button><label class="f m"><i>#</i><input id="hex" value="ef7d57" maxlength="7" spellcheck="false" /></label></div>
+        <p id="palnote" hidden></p>
+      </section>
+
+      <section id="s-sel"><h4>Cores do quadro</h4>
+        <p class="hint">Mude uma cor para trocá-la em todos os pixels do quadro selecionado.</p>
+        <div id="selcols"></div>
+      </section>
+
+      <section id="s-tool"><h4>Ferramenta</h4>
+        <div class="tgrid"><button class="tgl" data-opt="pp" data-icon="wandsp" aria-pressed="true" title="Pixel perfect: tira os cantos em L do traço">Pixel perfect</button><button class="tgl" data-opt="mirror" data-icon="flip" aria-pressed="false" title="Espelho: o que você desenha aparece também do outro lado do quadro (tecla X)">Espelho</button><button id="onionrow" class="tgl" data-opt="onion" data-icon="ghost" aria-pressed="false" title="Sombra do frame anterior: mostra o frame anterior da animação em transparência, para guiar o desenho">Sombra do frame anterior</button><button id="fillrow" class="tgl" data-opt="fill" data-icon="fill" aria-pressed="false" title="Preencher formas: retângulo e elipse saem cheios">Preencher formas</button></div>
+      </section>
+
+      <section id="s-refadd"><h4>Referências</h4>
+        <p class="hint">Traga uma imagem para usar de modelo ao lado dos quadros. Também dá para arrastar um arquivo para a tela ou colar com Ctrl+V.</p>
+        <div class="row"><button id="refload" data-icon="image">Abrir imagem</button><button id="refdemo">Exemplo</button></div>
+        <div class="row"><button id="aseload" data-icon="upload">Importar .aseprite</button><input id="asefile" type="file" accept=".aseprite,.ase" hidden /><input id="reffile" type="file" accept="image/*" hidden /></div>
+      </section>
+
+      <section id="s-export"><h4 id="etitle">Exportar</h4>
+        <div class="row"><label class="f"><i>Formato</i><select id="efmt"><option value="png">PNG</option><option value="ase">Aseprite (.aseprite)</option><option value="sheet">Sprite sheet (PNG + JSON)</option><option value="svg">SVG</option><option value="godot">Godot (PNG + SpriteFrames)</option><option value="gpl">Paleta (.gpl)</option></select></label></div>
+        <p id="efmtnote" class="hint"></p>
+        <div class="row" id="escalerow"><label class="f"><i>Escala</i><select id="escale"><option value="auto">Automática</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option></select></label></div>
+        <p id="esize" class="hint"></p><p id="einfo" hidden></p>
+        <div class="checks" id="ebgrow"><label><input id="ebg" type="checkbox" /> Incluir a cor de fundo</label><label id="eanimrow"><input id="eanim" type="checkbox" /> Quadros selecionados como animação</label></div>
+        <div class="row" style="margin-top:8px"><button id="export" class="primary" data-icon="download">Baixar</button><button id="ecopy" data-icon="clip" title="Copiar a imagem" aria-label="Copiar a imagem"></button></div>
+      </section>
+
+      <details id="perf"><summary>Medir desempenho</summary>
+        <div id="stats">…</div>
+        <div class="stress"><span>Estresse:</span>
+          <button data-n="100">100</button><button data-n="1000">1 mil</button><button data-n="5000">5 mil</button><button data-n="20000">20 mil</button>
+          <button id="clear">Limpar</button><button id="bench" class="primary">Teste 10 s</button></div>
+        <div id="benchout"></div>
+      </details>
+    </div>
+  </aside>
+</div>
+<div id="scrim"></div>
+<div id="pin" hidden><div class="pinbar">Referência fixa <button id="pinclose" data-icon="close" aria-label="Fechar"></button></div><img id="pinimg" alt="Referência" draggable="false" /></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
