@@ -23,8 +23,9 @@ class W {
   out() { return this.buf.slice(0, this.n) }
 }
 
-type L = { name: string; vis: boolean; px: Uint8Array; op?: number }
-const layersOf = (f: Frame): L[] => (f.layers ? f.layers.map(l => ({ name: l.name, vis: l.vis, px: l.px, op: l.op })) : [{ name: tr('Camada') + ' 1', vis: true, px: f.px }])
+type L = { name: string; vis: boolean; px: Uint8Array; op?: number; blend?: string }
+const ASE_BLEND: Record<string, number> = { normal: 0, multiply: 1, screen: 2, overlay: 3, add: 16 }
+const layersOf = (f: Frame): L[] => (f.layers ? f.layers.map(l => ({ name: l.name, vis: l.vis, px: l.px, op: l.op, blend: l.blend })) : [{ name: tr('Camada') + ' 1', vis: true, px: f.px }])
 
 /** Gera um arquivo .aseprite (v1.3, RGBA). Com `animation`, cada quadro vira um frame de tempo (todos com o mesmo tamanho). */
 export async function buildAseprite(frames: Frame[], animation: boolean, durationMs: number | number[] = 100): Promise<Blob> {
@@ -37,7 +38,7 @@ export async function buildAseprite(frames: Frame[], animation: boolean, duratio
   for (let fi = 0; fi < sets.length; fi++) {
     const layers = sets[fi], chunks: { type: number; data: Uint8Array }[] = []
     if (fi === 0) for (const l of layers) {
-      const c = new W(); c.u16(l.vis ? 3 : 2); c.u16(0); c.u16(0); c.u16(0); c.u16(0); c.u16(0); c.u8(Math.round((l.op ?? 1) * 255)); c.zero(3); c.str(l.name)
+      const c = new W(); c.u16(l.vis ? 3 : 2); c.u16(0); c.u16(0); c.u16(0); c.u16(0); c.u16(ASE_BLEND[l.blend ?? 'normal'] ?? 0); c.u8(Math.round((l.op ?? 1) * 255)); c.zero(3); c.str(l.name)
       chunks.push({ type: 0x2004, data: c.out() })
     }
     for (let li = 0; li < layers.length; li++) {
@@ -112,7 +113,7 @@ const ungz = async (data: Uint8Array) => new Uint8Array(await new Response(new B
 export async function serializeProject(doc: Doc, extra: Record<string, unknown>): Promise<Blob> {
   const data = {
     kixel: 1, ...extra, nextId: doc.nextId, nextLayer: doc.nextLayer, zorder: doc.zorder,
-    frames: [...doc.frames.values()].map(f => ({ id: f.id, x: f.x, y: f.y, w: f.w, h: f.h, name: f.name, dur: f.dur, bg: f.bg, palId: f.palId, parent: f.parent, hidden: f.hidden, trace: f.trace, activeLayer: f.activeLayer, px: b64(f.px), layers: f.layers?.map(l => ({ id: l.id, name: l.name, vis: l.vis, op: l.op, px: b64(l.px) })) })),
+    frames: [...doc.frames.values()].map(f => ({ id: f.id, x: f.x, y: f.y, w: f.w, h: f.h, name: f.name, dur: f.dur, bg: f.bg, palId: f.palId, parent: f.parent, hidden: f.hidden, trace: f.trace, activeLayer: f.activeLayer, px: b64(f.px), layers: f.layers?.map(l => ({ id: l.id, name: l.name, vis: l.vis, op: l.op, blend: l.blend, lock: l.lock, px: b64(l.px) })) })),
     conts: [...doc.conts.values()], notes: doc.notes,
     refs: doc.refs.map(r => ({ id: r.id, name: r.name, x: r.x, y: r.y, w: r.w, h: r.h, opacity: r.opacity, locked: r.locked, above: r.above, hidden: r.hidden, parent: r.parent, image: r.src.toDataURL('image/png') }))
   }
@@ -130,7 +131,7 @@ export async function parseProject(blob: Blob): Promise<ProjectData> {
 export { unb64 }
 
 // ------------------------------------------------------------------ importar .aseprite
-export type AseLayer = { name: string; vis: boolean; op: number; px: Uint8Array }
+export type AseLayer = { name: string; vis: boolean; op: number; px: Uint8Array; blend?: string }
 export type AseFrame = { dur: number; layers: AseLayer[] }
 export type AseFile = { w: number; h: number; frames: AseFrame[] }
 const inflate = async (data: Uint8Array) => new Uint8Array(await new Response(new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer())
@@ -141,7 +142,7 @@ export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
   const nFrames = dv.getUint16(6, true), w = dv.getUint16(8, true), h = dv.getUint16(10, true), depth = dv.getUint16(12, true), transIdx = dv.getUint8(28)
   if (![8, 16, 32].includes(depth)) throw new Error('Formato de cor não suportado.')
   const pal: number[][] = []   // r, g, b, a
-  const metas: { name: string; vis: boolean; op: number; group: boolean }[] = []
+  const metas: { name: string; vis: boolean; op: number; group: boolean; blend?: string }[] = []
   const frames: AseFrame[] = []
   let pos = 128
   for (let fi = 0; fi < nFrames; fi++) {
@@ -162,8 +163,8 @@ export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
     for (let c = 0; c < count; c++) {
       const csize = dv.getUint32(pos, true), type = dv.getUint16(pos + 4, true), d = pos + 6
       if (type === 0x2004) {
-        const flags = dv.getUint16(d, true), ltype = dv.getUint16(d + 2, true), op = dv.getUint8(d + 12), nlen = dv.getUint16(d + 16, true)
-        metas.push({ name: new TextDecoder().decode(u8.subarray(d + 18, d + 18 + nlen)), vis: !!(flags & 1), op: op / 255, group: ltype === 1 })
+        const flags = dv.getUint16(d, true), ltype = dv.getUint16(d + 2, true), op = dv.getUint8(d + 12), bm = dv.getUint16(d + 10, true), nlen = dv.getUint16(d + 16, true)
+        metas.push({ name: new TextDecoder().decode(u8.subarray(d + 18, d + 18 + nlen)), vis: !!(flags & 1), op: op / 255, group: ltype === 1, blend: bm === 1 ? 'multiply' : bm === 2 ? 'screen' : bm === 3 ? 'overlay' : bm === 16 ? 'add' : undefined })
       } else if (type === 0x2019) {
         const first = dv.getUint32(d + 4, true), last = dv.getUint32(d + 8, true); let q = d + 20
         for (let i = first; i <= last; i++) { const fl = dv.getUint16(q, true); pal[i] = [dv.getUint8(q + 2), dv.getUint8(q + 3), dv.getUint8(q + 4), dv.getUint8(q + 5)]; q += 6; if (fl & 1) q += 2 + dv.getUint16(q, true) }
@@ -182,7 +183,7 @@ export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
       pos += csize
     }
     const layers: AseLayer[] = []
-    metas.forEach((m, i) => { if (!m.group) layers.push({ name: m.name, vis: m.vis, op: m.op, px: cels.get(i) ?? mk() }) })
+    metas.forEach((m, i) => { if (!m.group) layers.push({ name: m.name, vis: m.vis, op: m.op, blend: m.blend, px: cels.get(i) ?? mk() }) })
     frames.push({ dur: dur || 100, layers })
     pos = fstart + fsize
   }

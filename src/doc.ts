@@ -8,7 +8,18 @@ export type Cls = 16 | 32 | 64
 export const BIG = 0 as const
 export const MAX_SIDE = 2048
 
-export type Layer = { id: number; name: string; vis: boolean; px: Uint8Array; op?: number }  // op: opacidade 0 a 1 (padrão 1)
+export type Blend = 'normal' | 'multiply' | 'screen' | 'overlay' | 'add'
+/** Mistura de um canal (0 a 255): b = fundo, s = camada de cima. */
+function blendCh(m: Blend, b: number, s: number): number {
+  switch (m) {
+    case 'multiply': return (b * s) / 255
+    case 'screen': return 255 - ((255 - b) * (255 - s)) / 255
+    case 'overlay': return b < 128 ? (2 * b * s) / 255 : 255 - (2 * (255 - b) * (255 - s)) / 255
+    case 'add': return Math.min(255, b + s)
+    default: return s
+  }
+}
+export type Layer = { id: number; name: string; vis: boolean; px: Uint8Array; op?: number; blend?: Blend; lock?: boolean }  // op: opacidade 0 a 1 (padrão 1)
 
 export type Frame = {
   id: number; x: number; y: number; w: number; h: number
@@ -135,7 +146,12 @@ export class Doc {
       for (const l of L) {
         const la = l.px[o + 3]; if (!la) continue
         const sa = (la / 255) * (l.op ?? 1), k = 1 - sa
-        r = l.px[o] * sa + r * k; g = l.px[o + 1] * sa + g * k; b = l.px[o + 2] * sa + b * k; a = sa + a * k
+        let cr = l.px[o], cg = l.px[o + 1], cb = l.px[o + 2]
+        if (l.blend && l.blend !== 'normal' && a > 0) {   // mescla com o que está embaixo: a cor da fonte muda conforme o fundo, na proporção da opacidade do fundo
+          const br = r / a, bg = g / a, bb = b / a
+          cr = cr + (blendCh(l.blend, br, cr) - cr) * a; cg = cg + (blendCh(l.blend, bg, cg) - cg) * a; cb = cb + (blendCh(l.blend, bb, cb) - cb) * a
+        }
+        r = cr * sa + r * k; g = cg * sa + g * k; b = cb * sa + b * k; a = sa + a * k
       }
       if (a > 0) { out[o] = Math.round(r / a); out[o + 1] = Math.round(g / a); out[o + 2] = Math.round(b / a); out[o + 3] = Math.round(a * 255) } else { out[o] = out[o + 1] = out[o + 2] = out[o + 3] = 0 }
     }

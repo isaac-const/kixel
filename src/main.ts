@@ -1,4 +1,4 @@
-import { Doc, readPatch, writePatch, type Frame, type Ref, type Cont, type Note, type Patch, type Cmd, type Layer } from './doc'
+import { Doc, readPatch, writePatch, type Blend, type Frame, type Ref, type Cont, type Note, type Patch, type Cmd, type Layer } from './doc'
 import { Renderer, type Cam } from './gl'
 import { PALETTES } from './data'
 import { initUI, type MenuItem } from './ui'
@@ -27,7 +27,7 @@ const S = {
   color: hex2rgba(PALETTE[3]), tool: 'pencil', brush: 1,
   sel: null as Frame | null, selRef: null as Ref | null, selCont: null as Cont | null, selNote: null as Note | null,
   lastSel: null as Frame | null, hover: null as { wx: number; wy: number } | null, spaceDown: false,
-  opacity: 100, shade: 'light' as 'light' | 'dark', dither: 0, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
+  opacity: 100, brushImg: null as { w: number; h: number; data: Uint8Array } | null, shade: 'light' as 'light' | 'dark', dither: 0, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { tile: false, mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
   mine: (() => { try { const v = JSON.parse(store.get('kixel-mine') || 'null'); return Array.isArray(v) ? v as string[] : PALETTE.slice(0, 8) } catch { return PALETTE.slice(0, 8) } })()
 }
 const selSet = new Set<Frame>()
@@ -154,12 +154,14 @@ function commitSnap(before: Snap, after: Snap) { doc.push({ undo: () => applySna
 function change(fr: Frame[], rf: Ref[], cs: Cont[], fn: () => void, z = false, ns: Note[] = []) { const before = snap(fr, rf, cs, z, ns); fn(); commitSnap(before, snap(fr, rf, cs, z, ns)); touch() }
 
 // ================================================================ edição de pixels (na camada ativa)
-type Stroke = { f: Frame; lid: number; buf: Uint8Array; before: Uint8Array; minx: number; miny: number; maxx: number; maxy: number; last: { x: number; y: number } | null; path: { x: number; y: number }[]; erase: boolean; shade?: number }
+type Stroke = { f: Frame; lid: number; buf: Uint8Array; before: Uint8Array; minx: number; miny: number; maxx: number; maxy: number; last: { x: number; y: number } | null; path: { x: number; y: number }[]; erase: boolean; shade?: number; lock?: boolean }
 let stroke: Stroke | null = null
 function setPx(s: Stroke, x: number, y: number, c: number[]) {
   const f = s.f
+  if (S.opt.tile) { x = ((x % f.w) + f.w) % f.w; y = ((y % f.h) + f.h) % f.h }   // modo tile: o desenho dá a volta pelas bordas
   if (x < 0 || y < 0 || x >= f.w || y >= f.h) return
   const o = (y * f.w + x) * 4, op = S.opacity / 100
+  if (s.lock && (s.erase || s.before[o + 3] === 0)) return   // transparência travada: só muda a cor do que já existe
   if (op >= 1 && !s.erase) { s.buf[o] = c[0]; s.buf[o + 1] = c[1]; s.buf[o + 2] = c[2]; s.buf[o + 3] = c[3] }
   else if (s.erase) {   // borracha com opacidade: tira só uma parte da opacidade do que já existe
     const a = Math.round(s.before[o + 3] * (1 - op))
@@ -169,6 +171,7 @@ function setPx(s: Stroke, x: number, y: number, c: number[]) {
     for (let q = 0; q < 3; q++) s.buf[o + q] = Math.round((c[q] * sa + s.before[o + q] * da * (1 - sa)) / oa)
     s.buf[o + 3] = Math.round(oa * 255)
   }
+  if (s.lock) s.buf[o + 3] = s.before[o + 3]
   if (x < s.minx) s.minx = x; if (y < s.miny) s.miny = y; if (x > s.maxx) s.maxx = x; if (y > s.maxy) s.maxy = y
 }
 /** Posições do pixel e dos seus espelhos (horizontal e/ou vertical, em volta do centro do quadro). */
@@ -249,6 +252,17 @@ const BAYER = [[0, 2], [3, 1]]
 const ditherOk = (x: number, y: number) => !S.dither || BAYER[y & 1][x & 1] < S.dither
 function stamp(s: Stroke, x: number, y: number) {
   const c = s.erase ? [0, 0, 0, 0] : S.color, half = Math.floor((S.brush - 1) / 2)
+  const bi = S.brushImg
+  if (bi) {   // pincel feito de uma seleção: carimba a imagem inteira, com as cores dela
+    const ox = x - Math.floor(bi.w / 2), oy = y - Math.floor(bi.h / 2)
+    for (let j = 0; j < bi.h; j++) for (let i = 0; i < bi.w; i++) {
+      const o = (j * bi.w + i) * 4; if (!bi.data[o + 3]) continue
+      const px = ox + i, py = oy + j; if (!ditherOk(px, py)) continue
+      const col = s.erase ? c : [bi.data[o], bi.data[o + 1], bi.data[o + 2], bi.data[o + 3]]
+      for (const q of mirrored(s.f, px, py)) { if (s.shade) shadePx(s, q.x, q.y); else setPx(s, q.x, q.y, col) }
+    }
+    return
+  }
   const n = S.brush, r2 = (n / 2) ** 2 + 0.01
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     if (S.opt.round && n > 2 && (i + 0.5 - n / 2) ** 2 + (j + 0.5 - n / 2) ** 2 > r2) continue   // pincel redondo: tira os cantos
@@ -273,7 +287,7 @@ function strokeTo(s: Stroke, x: number, y: number) {
     const L = s.path[s.path.length - 1]
     if (L && L.x === px && L.y === py) return
     stamp(s, px, py); s.path.push({ x: px, y: py })
-    if (S.opt.pp && S.brush === 1 && !s.erase && s.path.length >= 3) { // tira os "cantos em L" para um traço mais limpo
+    if (S.opt.pp && S.brush === 1 && !S.brushImg && !s.erase && s.path.length >= 3) { // tira os "cantos em L" para um traço mais limpo
       const n = s.path.length, a = s.path[n - 3], b = s.path[n - 2], c = s.path[n - 1]
       if (Math.abs(a.x - c.x) === 1 && Math.abs(a.y - c.y) === 1 && ((b.x === a.x && b.y === c.y) || (b.y === a.y && b.x === c.x))) { restorePx(s, b.x, b.y); s.path.splice(n - 2, 1) }
     }
@@ -285,7 +299,7 @@ const activeLayerVisible = (f: Frame) => !f.layers || !!f.layers.find(l => l.id 
 function newStroke(f: Frame, erase: boolean): Stroke | null {
   if (!activeLayerVisible(f)) { toast('A camada ativa está oculta. Mostre-a (ícone do olho) para desenhar.'); return null }
   const buf = doc.activeBuf(f)
-  return { f, lid: f.layers ? f.activeLayer : 1, buf, before: buf.slice(), minx: 1e9, miny: 1e9, maxx: -1, maxy: -1, last: null, path: [], erase }
+  return { f, lock: !!f.layers?.find(l => l.id === f.activeLayer)?.lock, lid: f.layers ? f.activeLayer : 1, buf, before: buf.slice(), minx: 1e9, miny: 1e9, maxx: -1, maxy: -1, last: null, path: [], erase }
 }
 function beginStroke(f: Frame, x: number, y: number, erase: boolean, shade = 0) {
   stroke = newStroke(f, erase)
@@ -432,6 +446,10 @@ function layerToggle(f: Frame, id: number) {
   const fid = f.id, v = L.vis
   const set = (val: boolean) => { const g = doc.frames.get(fid); const l = g?.layers?.find(q => q.id === id); if (!g || !l) return; l.vis = val; doc.composite(g); R.upload(doc, g); invalidate() }
   set(!v); doc.push({ undo: () => set(v), redo: () => set(!v) }); touch()
+}
+function layerSetProp(f: Frame, key: 'blend' | 'lock', value: Blend | boolean) {
+  const L = f.layers; if (!L) { toast('Crie uma segunda camada para usar isso.'); return }
+  layerOp(f, () => { const i = L.findIndex(l => l.id === f.activeLayer); if (i >= 0) L[i] = { ...L[i], [key]: key === 'blend' && value === 'normal' ? undefined : value } })
 }
 function layerRename(f: Frame, id: number, name: string) {
   const L = f.layers?.find(l => l.id === id); name = name.trim(); if (!L || !name || L.name === name) return
@@ -668,7 +686,7 @@ async function openProject(file: Blob, quiet = false) {
     const g = doc.addFrame(fr.x, fr.y, fr.w, fr.h, fr.id)
     Object.assign(g, { name: fr.name, dur: fr.dur, bg: fr.bg, palId: fr.palId, parent: fr.parent, hidden: fr.hidden, trace: !!fr.trace, activeLayer: fr.activeLayer ?? 1 })
     g.px.set(unb64(fr.px))
-    if (fr.layers) g.layers = fr.layers.map((l: any) => ({ id: l.id, name: l.name, vis: l.vis, op: l.op, px: unb64(l.px) }))
+    if (fr.layers) g.layers = fr.layers.map((l: any) => ({ id: l.id, name: l.name, vis: l.vis, op: l.op, blend: l.blend, lock: l.lock, px: unb64(l.px) }))
     R.upload(doc, g)
   }
   for (const n of d.notes ?? []) doc.addNote(n.x, n.y, n.text, n.color, n.id, n.w, n.h)
@@ -924,7 +942,7 @@ async function importAseprite(file: File) {
     const g = doc.addFrame(at.x + i * (a.w + 8), at.y, a.w, a.h)
     g.name = a.frames.length > 1 ? `${base} ${i + 1}` : base; g.palId = S.defaultPal; if (a.frames.length > 1) g.dur = fr.dur
     if (fr.layers.length <= 1) g.px.set(fr.layers[0]?.px ?? new Uint8Array(a.w * a.h * 4))
-    else { g.layers = fr.layers.map(l => ({ id: doc.nextLayer++, name: l.name, vis: l.vis, op: l.op < 1 ? l.op : undefined, px: l.px })); g.activeLayer = g.layers[g.layers.length - 1].id; doc.composite(g) }
+    else { g.layers = fr.layers.map(l => ({ id: doc.nextLayer++, name: l.name, vis: l.vis, op: l.op < 1 ? l.op : undefined, blend: (l as any).blend, px: l.px })); g.activeLayer = g.layers[g.layers.length - 1].id; doc.composite(g) }
     R.upload(doc, g); made.push(g); recs.push(frameRec(g))
   })
   doc.push(addCmd(recs))
@@ -1160,6 +1178,11 @@ function pxReplace(p: PSel, data: Uint8Array, nx: number, ny: number, nw: number
   psel = { f, x: nx, y: ny, w: nw, h: nh, mask: p.mask ? maskOfData(data) : undefined }
   return true
 }
+function useAsBrush() {
+  const p = pxLive(); if (!p) return
+  S.brushImg = { w: p.w, h: p.h, data: pxRegion(doc.activeBuf(p.f), p.f, p) }
+  psel = null; setTool('pencil'); ui.ctxSync(); toast('Pincel feito da seleção. Para voltar ao pincel quadrado, use o botão no painel.')
+}
 function pxFlip(axis: 'h' | 'v') {
   const p = pxLive(); if (!p) return
   const src = pxRegion(doc.activeBuf(p.f), p.f, p)
@@ -1347,7 +1370,7 @@ function menuItems(wx: number, wy: number): MenuItem[] {
   if (S.tool === 'marquee' && pxLive()) {
     add('Copiar pixels', () => pxCopy(false), 'Ctrl+C'); add('Recortar pixels', () => pxCopy(true), 'Ctrl+X'); add('Colar pixels', () => pxPaste(), 'Ctrl+V', !pxClip); add('Apagar pixels', pxClear, 'Delete'); sep()
     add('Espelhar na horizontal', () => pxFlip('h'), 'Shift+H'); add('Espelhar na vertical', () => pxFlip('v'), 'Shift+V'); add('Girar 90° para a direita', () => pxRotate(1), 'Shift+R'); add('Girar 90° para a esquerda', () => pxRotate(-1)); add('Girar 180°', () => pxRotate(2)); sep()
-    add('Contorno na cor atual', () => outlineAuto()); sep(); add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Inverter seleção', () => { pxInvert(); invalidate() }, 'Ctrl+Shift+I'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
+    add('Usar a seleção como pincel', useAsBrush); add('Contorno na cor atual', () => outlineAuto()); sep(); add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Inverter seleção', () => { pxInvert(); invalidate() }, 'Ctrl+Shift+I'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
     return it
   }
   if (n) {
@@ -1759,6 +1782,7 @@ function drawNote(n: Note) {
   if (on) { octx.strokeStyle = ACC; octx.lineWidth = 2; octx.strokeRect(r.x, r.y, r.w, r.h); for (const p of Object.values(handlePoints(n, false))) handle(p[0], p[1]) }
   label((n.text.split('\n')[0] || tr('Nota')).slice(0, 30), r.x, r.y - 4, on ? ACC : MUT, null, { k: 'n', id: n.id }, Math.max(90, r.w))
 }
+let tileCv: { id: number; up: number; cv: HTMLCanvasElement } | null = null
 let onion: { id: number; up: number; cv: HTMLCanvasElement } | null = null
 function drawOverlay() {
   syncSel()
@@ -1819,6 +1843,13 @@ function drawOverlay() {
       if (!onion || onion.id !== prev.id || onion.up !== R.uploadCount) { const cv = document.createElement('canvas'); cv.width = prev.w; cv.height = prev.h; const id = new ImageData(prev.w, prev.h); id.data.set(prev.px); cv.getContext('2d')!.putImageData(id, 0, 0); onion = { id: prev.id, up: R.uploadCount, cv } }
       const a = rectPx(S.sel); octx.save(); octx.imageSmoothingEnabled = false; octx.globalAlpha = 0.35; octx.drawImage(onion.cv, a.x, a.y, a.w, a.h); octx.restore()
     }
+  }
+  if (S.opt.tile && S.sel && doc.frames.get(S.sel.id) === S.sel && S.sel.w * S.sel.h <= 262144) {   // modo tile: mostra as repetições em volta do quadro
+    const f = S.sel
+    if (!tileCv || tileCv.id !== f.id || tileCv.up !== R.uploadCount) { const cv = document.createElement('canvas'); cv.width = f.w; cv.height = f.h; const id = new ImageData(f.w, f.h); id.data.set(f.px); cv.getContext('2d')!.putImageData(id, 0, 0); tileCv = { id: f.id, up: R.uploadCount, cv } }
+    octx.save(); octx.imageSmoothingEnabled = false; octx.globalAlpha = 0.5
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const a = rectPx({ x: f.x + dx * f.w, y: f.y + dy * f.h, w: f.w, h: f.h }); octx.drawImage(tileCv.cv, a.x, a.y, a.w, a.h) }
+    octx.restore()
   }
   octx.save(); octx.lineWidth = 1; octx.strokeStyle = '#ff4d8d'
   for (const g of guides.v) { const a = w2s(g.x, g.a), b = w2s(g.x, g.b), x = Math.round(a.x) + 0.5; octx.beginPath(); octx.moveTo(x, a.y); octx.lineTo(x, b.y); octx.stroke() }
@@ -1927,7 +1958,7 @@ const ui = initUI({
     invalidate, touch, syncSel, selFrames, selectFrame, selectFrames, selectRef, selectCont, clearSel, selectNote, snap, commitSnap, change,
     adjustColors, invertColors, outlineAuto, colorRamp, fname, cname, flyTo, focusFrame, fitRect, fitAll, stepZoom, snapZoom, getCam: () => cam, stageSize: () => ({ w: cssW, h: cssH }),
     placeFrame, setLastPreset: (w: number, h: number) => { lastPreset = { w, h } }, deleteSelection, duplicateSelection, groupSelection, ungroup, fitContainer, reshapeFrame,
-    layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
+    layerSetProp, layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
     openContext, uploadCount: () => R.uploadCount, frameColors, recolorFrames, recolorBegin, recolorEnd, alignFrames, distributeFrames, layersState, layerOpacityLive, layerCommit, layerMergeDown, layerReorder, importAseprite, sliceSheet, importPaletteFile, extractPalette, newAnimation, setAnimOrder, setAnim, exportGodot, importProjectFile, newWorkspace: () => void createWorkspace(), goHome, renameWs, exportPng, exportAs, animFrames, exportGif, exportAseAnim, animAddFrame, animSame, saveProject, openProject, copyPng, exportScale, removeNote, NOTE_COLORS, setTool, setColor, toast, paletteById, paletteOf, boundsOf, spawn, runBench, perfInfo, w2s, hit: () => labelRects
   }
 })

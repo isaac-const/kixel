@@ -140,10 +140,14 @@ export function initUI(c: any): UI {
     $('selhint').textContent = S.selMode === 'wand' ? 'Clique numa cor para selecionar os pixels parecidos que se tocam. Shift soma, Alt pega todos do quadro.' : S.selMode === 'lasso' ? 'Arraste para contornar à mão. Shift soma à seleção.' : 'Arraste para selecionar um retângulo.'
     show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill'); show('shaderow', S.tool === 'shade')
     for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.classList.toggle('on', b.dataset.shade === S.shade)
+    show('brushimgrow', !!S.brushImg)
     const dsel = $<HTMLSelectElement>('dither'); if (dsel) dsel.value = String(S.dither)
   }
   for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.onclick = () => { S.shade = b.dataset.shade; ctxSync() }
   $<HTMLSelectElement>('dither').onchange = e => { S.dither = Number((e.target as HTMLSelectElement).value) }
+  $<HTMLSelectElement>('lblend').onchange = e => { const f = single(); if (f) core.layerSetProp(f, 'blend', (e.target as HTMLSelectElement).value); layKey = ''; panels(true) }
+  $('llock').onclick = () => { const f = single(); const act = f?.layers?.find((q: any) => q.id === f.activeLayer); if (f) core.layerSetProp(f, 'lock', !act?.lock); layKey = ''; panels(true) }
+  $('brushimgrow').onclick = () => { S.brushImg = null; ctxSync() }
   $('adjgo').onclick = () => { core.adjustColors(Number(val('adjh').value), Number(val('adjs').value), Number(val('adjl').value)); for (const id of ['adjh', 'adjs', 'adjl']) val(id).value = '0'; adjSync() }
   function adjSync() { $('adjhv').textContent = val('adjh').value + '°'; $('adjsv').textContent = val('adjs').value + '%'; $('adjlv').textContent = val('adjl').value + '%' }
   for (const id of ['adjh', 'adjs', 'adjl']) val(id).oninput = adjSync
@@ -545,7 +549,7 @@ export function initUI(c: any): UI {
   let layKey = '', dragLayer = 0
   function buildLayers(f: Frame) {
     const box = $('llist'); box.replaceChildren()
-    { const act = f.layers?.find((q: any) => q.id === f.activeLayer); val('lop').disabled = !f.layers; if (document.activeElement !== val('lop')) { val('lop').value = String(Math.round((act?.op ?? 1) * 100)); $('lopv').textContent = val('lop').value + '%' } }
+    { const act = f.layers?.find((q: any) => q.id === f.activeLayer); $<HTMLSelectElement>('lblend').value = act?.blend ?? 'normal'; $('lblend').toggleAttribute('disabled', !f.layers); $('llock').setAttribute('aria-pressed', String(!!act?.lock)); $('llock').toggleAttribute('disabled', !f.layers); val('lop').disabled = !f.layers; if (document.activeElement !== val('lop')) { val('lop').value = String(Math.round((act?.op ?? 1) * 100)); $('lopv').textContent = val('lop').value + '%' } }
     const L = f.layers ?? [{ id: 1, name: tr('Camada') + ' 1', vis: true }]
     for (const l of [...L].reverse()) {
       const el = document.createElement('div'); el.className = 'ly' + (l.id === f.activeLayer ? ' on' : '') + (l.vis ? '' : ' off')

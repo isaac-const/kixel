@@ -115,6 +115,11 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Ajustar cores:** matiz, saturação e brilho, inverter cores e contorno automático, na seleção ou no quadro.
 - **Rampa:** gera 7 tons da cor atual e guarda em "Minha paleta".
 
+## v14: tile, pincel da seleção e camadas
+- **Modo tile:** mostra o quadro repetido em volta e o desenho dá a volta pelas bordas, para texturas sem emenda.
+- **Pincel da seleção:** o botão direito na seleção tem "Usar a seleção como pincel"; o carimbo mantém as cores.
+- **Camadas:** mesclagem (multiplicar, tela, sobrepor, somar), gravada também no .aseprite e no projeto, e travar transparência.
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 

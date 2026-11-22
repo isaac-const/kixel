@@ -1,0 +1,35 @@
+import { open, ok } from './harness.mjs'
+const t = await open({ lang: process.argv[2] })
+const { pg, px, count, drag, click, scr } = t
+// ---- tile: pintar na borda dá a volta
+await pg.evaluate(() => { __app.S.opt.tile = true; __app.ui.ctxSync() }); await pg.keyboard.press('b')
+await pg.evaluate(() => { __app.S.brush = 3; __app.ui.ctxSync() }); await click(0, 0)
+ok('tile: pincel 3x3 no canto (0,0) pinta o canto oposto (15,15)', (await px(15, 15))[3] === 255 && (await px(0, 15))[3] === 255 && (await px(15, 0))[3] === 255 && (await count()) === 9, String(await count()))
+await pg.screenshot({ path: '/tmp/shots/v14-tile.png' })
+await pg.keyboard.press('Control+z'); await pg.evaluate(() => { __app.S.opt.tile = false; __app.S.brush = 1; __app.ui.ctxSync() })
+// ---- camadas: multiplicar e travar transparência
+await pg.evaluate(() => { const a = __app, f = [...a.doc.frames.values()].find(g => g.name === 'T'); a.selectFrame(f); a.layerAdd(f)
+  const L = f.layers; L[0].px.set([200, 100, 50, 255], (4 * 16 + 4) * 4); L[1].px.set([128, 128, 128, 255], (4 * 16 + 4) * 4); a.doc.composite(f); a.R.upload(a.doc, f) })
+await pg.click('#tabs [data-tab=camadas]'); await pg.waitForTimeout(200)
+const before = await px(4, 4)
+await pg.selectOption('#lblend', 'multiply'); await pg.waitForTimeout(100)
+const after = await px(4, 4)
+ok('multiplicar escurece (200,100,50 x 128/255)', after[0] === 100 && after[1] === 50 && after[2] === 25, `${before} -> ${after}`)
+await pg.keyboard.press('Control+z'); ok('desfazer volta ao normal', (await px(4, 4)).join() === '128,128,128,255')
+await pg.keyboard.press('Control+Shift+z')
+await pg.selectOption('#lblend', 'normal')
+// travar transparência: camada ativa é a de cima (cinza em 4,4). Pinta vermelho em (4,4) e (8,8): só o primeiro muda
+await pg.click('#llock'); await pg.evaluate(() => { __app.S.color = [255, 0, 0, 255]; __app.S.tool = 'pencil' }); await pg.keyboard.press('b')
+await click(4, 4); await click(8, 8)
+ok('travado: pinta onde já havia cor', (await px(4, 4)).join() === '255,0,0,255')
+ok('travado: não pinta o vazio', (await px(8, 8))[3] === 0)
+// ---- pincel da seleção
+await pg.click('#llock'); await pg.keyboard.press('Escape')
+await pg.evaluate(() => { const f = [...__app.doc.frames.values()].find(g => g.name === 'T'); const b = f.layers[1].px; b.fill(0); for (const [x, y] of [[1, 1], [2, 1], [1, 2]]) b.set([0, 255, 0, 255], (y * 16 + x) * 4); __app.doc.composite(f); __app.R.upload(__app.doc, f); __app.S.opt.tile = false })
+await pg.keyboard.press('m'); await drag(0.2, 0.2, 3.8, 3.8, 4)
+await pg.mouse.click(...(await scr(2, 2)).constructor === Object ? [(await scr(2, 2)).x, (await scr(2, 2)).y] : [0, 0], { button: 'right' }); await pg.waitForTimeout(250)
+await pg.click('.cmenu button:has-text("pincel"), .cmenu button:has-text("brush"), .cmenu button:has-text("Pincel")'); await pg.waitForTimeout(150)
+ok('pincel da seleção ativo', await pg.evaluate(() => !!__app.S.brushImg && __app.S.tool === 'pencil'))
+await click(10, 10)
+ok('carimbou o formato em L, centrado (pixels 9,9 10,9 9,10)', (await px(9, 9))[1] === 255 && (await px(10, 9))[1] === 255 && (await px(9, 10))[1] === 255 && (await px(10, 10))[3] === 0)
+await t.done()
