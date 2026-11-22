@@ -99,6 +99,7 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Achar o que falta traduzir:** abra o app com `?probe=1` no endereço; cada texto sem tradução é gravado em `i18n-missing.log` (só no servidor de desenvolvimento).
 - **Player:** velocidade contínua de 0,1× a 10× (campo, rolagem do mouse, − e +), FPS até 120 e duração própria de cada frame.
 - **Git:** o projeto agora é um repositório; cada funcionalidade nova entra em um commit.
+- **Celular:** o player começa compacto (▾ mostra o resto); toque longo (550 ms) abre o menu do que está sob o dedo; as gavetas Camadas e Painel têm botão X. Em celular deitado a tela fica apertada e o player pode encostar na faixa de cores.
 
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
