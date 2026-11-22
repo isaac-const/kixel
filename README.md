@@ -109,6 +109,12 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Seleção por máscara:** além do retângulo, o laço (Q) contorna à mão e a varinha (W) pega pixels de cor parecida (Shift soma, Alt pega todos do quadro). Mover, esticar, girar e copiar respeitam o formato. Ctrl+Shift+I inverte. O modo fica na seção "Seleção" do painel.
 - **Tolerância:** controla o quanto uma cor pode diferir, na varinha e no balde.
 
+## v13: ferramentas de cor
+- **Sombra (D):** clareia ao pintar, Alt escurece (puxa sombras para o azul e luzes para o amarelo).
+- **Pontilhado:** 25%, 50% ou 75% em padrão fixo, vale para lápis, borracha e formas.
+- **Ajustar cores:** matiz, saturação e brilho, inverter cores e contorno automático, na seleção ou no quadro.
+- **Rampa:** gera 7 tons da cor atual e guarda em "Minha paleta".
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 

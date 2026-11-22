@@ -133,7 +133,7 @@
       </section>
 
       <section id="s-color"><h4 id="ctitle">Cor</h4>
-        <div class="row"><select id="palsel" aria-label="Paleta"></select><button id="palimport" title="Importar paleta (.gpl, .hex, .pal, .txt)" aria-label="Importar paleta" data-icon="upload"></button><input id="palfile" type="file" accept=".gpl,.hex,.pal,.txt,text/plain" hidden /><button id="paladd" title="Guardar a cor atual em Minha paleta" aria-label="Guardar a cor atual em Minha paleta" data-icon="plus"></button></div>
+        <div class="row"><select id="palsel" aria-label="Paleta"></select><button id="palimport" title="Importar paleta (.gpl, .hex, .pal, .txt)" aria-label="Importar paleta" data-icon="upload"></button><input id="palfile" type="file" accept=".gpl,.hex,.pal,.txt,text/plain" hidden /><button id="palramp" data-icon="blend" aria-label="Gerar rampa de tons" title="Gerar rampa: cria 7 tons a partir da cor atual (sombras mais frias, luzes mais quentes) e guarda em Minha paleta"></button><button id="paladd" title="Guardar a cor atual em Minha paleta" aria-label="Guardar a cor atual em Minha paleta" data-icon="plus"></button></div>
         <div id="palette" class="pal" aria-label="Cores da paleta"></div>
         <div class="row cur"><button id="cpick" class="swbtn" aria-label="Seletor de cor" title="Abrir o seletor de cor"></button><label class="f m"><i>#</i><input id="hex" value="ef7d57" maxlength="7" spellcheck="false" /></label></div>
         <p id="palnote" hidden></p>
@@ -145,6 +145,9 @@
       </section>
 
       <section id="s-tool"><h4>Ferramenta</h4>
+        <div id="shaderow"><div class="seg" id="shademode" role="tablist"><button data-shade="light" class="on">Clarear</button><button data-shade="dark">Escurecer</button></div>
+        <p class="hint">Pinte sobre o desenho para clarear ou escurecer. Segure Alt para fazer o contrário.</p></div>
+        <label class="f" id="dithrow"><i>Pontilhado</i><select id="dither"><option value="0">Desligado</option><option value="1">25%</option><option value="2">50%</option><option value="3">75%</option></select></label>
         <label class="slide" id="tolrow"><span>Tolerância do balde</span><input class="tol" type="range" min="0" max="100" value="0" title="Quanto uma cor pode diferir para o balde ainda pintar" /><b class="tolv">0%</b></label>
         <div class="tgrid"><button class="tgl" data-opt="pp" data-icon="wandsp" aria-pressed="true" title="Pixel perfect: tira os cantos em L do traço">Pixel perfect</button><button class="tgl" data-opt="mirror" data-icon="flip" aria-pressed="false" title="Espelho: o que você desenha aparece também do outro lado do quadro (tecla X)">Espelho horizontal</button><button class="tgl" data-opt="mirrorY" data-icon="flip" aria-pressed="false" title="Espelho vertical: o que você desenha aparece também em cima e embaixo (tecla Y)">Espelho vertical</button><button class="tgl" data-opt="round" data-icon="ellipse" aria-pressed="false" title="Pincel redondo: tira os cantos do pincel (a partir de 3 px)">Pincel redondo</button><button class="tgl" data-opt="fillAll" data-icon="fill" aria-pressed="false" title="Balde em todo o quadro: troca todos os pixels da mesma cor, mesmo os que não se tocam">Balde global</button><button id="onionrow" class="tgl" data-opt="onion" data-icon="ghost" aria-pressed="false" title="Sombra do frame anterior: mostra o frame anterior da animação em transparência, para guiar o desenho">Sombra do frame anterior</button><button id="fillrow" class="tgl" data-opt="fill" data-icon="fill" aria-pressed="false" title="Preencher formas: retângulo e elipse saem cheios">Preencher formas</button></div>
       </section>
@@ -153,6 +156,14 @@
         <div class="seg" id="selmode" role="tablist"><button data-selmode="rect" class="on" title="Retângulo (M)">Retângulo</button><button data-selmode="lasso" title="Laço: desenhe o contorno à mão (Q)">Laço</button><button data-selmode="wand" title="Varinha: seleciona pixels de cor parecida (W)">Varinha</button></div>
         <label class="slide" id="tolrow2"><span>Tolerância</span><input class="tol" type="range" min="0" max="100" value="0" /><b class="tolv">0%</b></label>
         <p class="hint" id="selhint"></p>
+      </section>
+
+      <section id="s-adjust"><h4>Ajustar cores</h4>
+        <p class="hint">Vale para a seleção de pixels ou, sem seleção, para o quadro todo (camada ativa).</p>
+        <label class="slide"><span>Matiz</span><input id="adjh" type="range" min="-180" max="180" value="0" /><b id="adjhv">0°</b></label>
+        <label class="slide"><span>Saturação</span><input id="adjs" type="range" min="-100" max="100" value="0" /><b id="adjsv">0%</b></label>
+        <label class="slide"><span>Brilho</span><input id="adjl" type="range" min="-100" max="100" value="0" /><b id="adjlv">0%</b></label>
+        <div class="row"><button id="adjgo" class="primary">Aplicar</button><button id="adjinv" title="Troca cada cor pela oposta">Inverter cores</button><button id="adjout" title="Contorno de 1 pixel na cor atual, em volta do desenho" data-icon="ellipse">Contorno</button></div>
       </section>
 
       <section id="s-refadd"><h4>Referências</h4>

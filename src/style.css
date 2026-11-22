@@ -378,3 +378,4 @@ details.acc>summary{min-height:38px}details.acc>summary span[data-icon]{display:
 .aplayer.mini .afilm,.aplayer.mini .aspd{display:none}
 @media (max-width:900px){.aplayer{width:208px;padding:8px;gap:6px}.aplayer .aview{height:110px}}
 .cmenu{max-height:calc(100vh - 12px);overflow-y:auto;overscroll-behavior:contain}
+.slide span{min-width:74px}

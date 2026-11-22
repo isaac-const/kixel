@@ -27,7 +27,7 @@ const S = {
   color: hex2rgba(PALETTE[3]), tool: 'pencil', brush: 1,
   sel: null as Frame | null, selRef: null as Ref | null, selCont: null as Cont | null, selNote: null as Note | null,
   lastSel: null as Frame | null, hover: null as { wx: number; wy: number } | null, spaceDown: false,
-  opacity: 100, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
+  opacity: 100, shade: 'light' as 'light' | 'dark', dither: 0, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
   mine: (() => { try { const v = JSON.parse(store.get('kixel-mine') || 'null'); return Array.isArray(v) ? v as string[] : PALETTE.slice(0, 8) } catch { return PALETTE.slice(0, 8) } })()
 }
 const selSet = new Set<Frame>()
@@ -154,7 +154,7 @@ function commitSnap(before: Snap, after: Snap) { doc.push({ undo: () => applySna
 function change(fr: Frame[], rf: Ref[], cs: Cont[], fn: () => void, z = false, ns: Note[] = []) { const before = snap(fr, rf, cs, z, ns); fn(); commitSnap(before, snap(fr, rf, cs, z, ns)); touch() }
 
 // ================================================================ edição de pixels (na camada ativa)
-type Stroke = { f: Frame; lid: number; buf: Uint8Array; before: Uint8Array; minx: number; miny: number; maxx: number; maxy: number; last: { x: number; y: number } | null; path: { x: number; y: number }[]; erase: boolean }
+type Stroke = { f: Frame; lid: number; buf: Uint8Array; before: Uint8Array; minx: number; miny: number; maxx: number; maxy: number; last: { x: number; y: number } | null; path: { x: number; y: number }[]; erase: boolean; shade?: number }
 let stroke: Stroke | null = null
 function setPx(s: Stroke, x: number, y: number, c: number[]) {
   const f = s.f
@@ -178,13 +178,83 @@ function mirrored(f: Frame, x: number, y: number): { x: number; y: number }[] {
   if (S.opt.mirrorY) { out.push({ x, y: f.h - 1 - y }); if (S.opt.mirror) out.push({ x: f.w - 1 - x, y: f.h - 1 - y }) }
   return out
 }
+// ---- cor: conversões e ajustes
+function rgb2hsl(r: number, g: number, b: number): [number, number, number] {
+  r /= 255; g /= 255; b /= 255
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn
+  if (d === 0) return [0, 0, l]
+  const s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn)
+  const h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4
+  return [h * 60, s, l]
+}
+function hsl2rgb(h: number, s: number, l: number): [number, number, number] {
+  h = ((h % 360) + 360) % 360
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x]
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]
+}
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v))
+/** Rampa de 7 tons: sombras puxam para o azul, luzes para o amarelo (como se faz em pixel art). */
+function colorRamp(c: number[]): string[] {
+  const [h, s, l] = rgb2hsl(c[0], c[1], c[2]), out: string[] = []
+  const toward = (from: number, to: number) => { let d = ((to - from + 540) % 360) - 180; return d }
+  for (let i = -3; i <= 3; i++) {
+    const hh = h + toward(h, i < 0 ? 240 : 55) * 0.07 * Math.abs(i), ss = clamp01(s * (1 - 0.07 * Math.abs(i))), ll = Math.max(0.08, Math.min(0.94, l + i * 0.09))
+    out.push(hexOf([...hsl2rgb(hh, ss, ll), 255]))
+  }
+  return out
+}
+/** Troca a cor dos pixels da seleção (ou do quadro) por uma função; um passo de desfazer. */
+function mapColors(fn: (r: number, g: number, b: number) => [number, number, number], label: string) {
+  const p = pxLive(), f = p?.f ?? targetFrame(); if (!f) { toast('Selecione um quadro primeiro.'); return }
+  const s = newStroke(f, false); if (!s) return
+  const x0 = p ? p.x : 0, y0 = p ? p.y : 0, w = p ? p.w : f.w, h = p ? p.h : f.h
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    if (p && p.mask && !p.mask[j * w + i]) continue
+    const o = ((y0 + j) * f.w + x0 + i) * 4; if (s.buf[o + 3] === 0) continue
+    const [r, g, b] = fn(s.buf[o], s.buf[o + 1], s.buf[o + 2]); s.buf[o] = r; s.buf[o + 1] = g; s.buf[o + 2] = b
+  }
+  s.minx = x0; s.miny = y0; s.maxx = x0 + w - 1; s.maxy = y0 + h - 1
+  stroke = s; commitStroke(); edited(s); toast(label)
+}
+function adjustColors(dh: number, ds: number, dl: number) {
+  mapColors((r, g, b) => { const [h, s, l] = rgb2hsl(r, g, b); return hsl2rgb(h + dh, clamp01(s + ds / 100), clamp01(l + dl / 100)) }, 'Cores ajustadas.')
+}
+const invertColors = () => mapColors((r, g, b) => [255 - r, 255 - g, 255 - b], 'Cores invertidas.')
+/** Contorno de 1 pixel, na cor atual, em volta do que está pintado (dentro do quadro). */
+function outlineAuto(diag = false) {
+  const p = pxLive(), f = p?.f ?? targetFrame(); if (!f) { toast('Selecione um quadro primeiro.'); return }
+  const s = newStroke(f, false); if (!s) return
+  const src = s.before, c = S.color, W = f.w, H = f.h
+  const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && src[(y * W + x) * 4 + 3] > 0 && (!p || (inPsel(p, x, y)))
+  let n = 0
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (src[(y * W + x) * 4 + 3] > 0) continue
+    if (solid(x - 1, y) || solid(x + 1, y) || solid(x, y - 1) || solid(x, y + 1) || (diag && (solid(x - 1, y - 1) || solid(x + 1, y - 1) || solid(x - 1, y + 1) || solid(x + 1, y + 1)))) { setPx(s, x, y, c); n++ }
+  }
+  if (!n) { toast('Não há onde desenhar o contorno.'); return }
+  stroke = s; commitStroke(); edited(s); toast('Contorno desenhado.')
+}
+/** Escurece ou clareia um pixel do traço (sempre a partir do original, então passar duas vezes não acumula). */
+function shadePx(s: Stroke, x: number, y: number) {
+  const f = s.f; if (x < 0 || y < 0 || x >= f.w || y >= f.h) return
+  const o = (y * f.w + x) * 4; if (s.before[o + 3] === 0) return
+  const [h, sa, l] = rgb2hsl(s.before[o], s.before[o + 1], s.before[o + 2]), d = (s.shade ?? 1) * 0.12 * (S.opacity / 100)
+  const hh = h + (s.shade! > 0 ? (((55 - h + 540) % 360) - 180) * 0.05 : (((240 - h + 540) % 360) - 180) * 0.05)
+  const [r, g, b] = hsl2rgb(hh, clamp01(sa), clamp01(l + d)); s.buf[o] = r; s.buf[o + 1] = g; s.buf[o + 2] = b
+  if (x < s.minx) s.minx = x; if (y < s.miny) s.miny = y; if (x > s.maxx) s.maxx = x; if (y > s.maxy) s.maxy = y
+}
+const BAYER = [[0, 2], [3, 1]]
+/** Pontilhado: densidade 1 a 3 de 4 (25%, 50%, 75%), em padrão fixo no quadro. */
+const ditherOk = (x: number, y: number) => !S.dither || BAYER[y & 1][x & 1] < S.dither
 function stamp(s: Stroke, x: number, y: number) {
   const c = s.erase ? [0, 0, 0, 0] : S.color, half = Math.floor((S.brush - 1) / 2)
   const n = S.brush, r2 = (n / 2) ** 2 + 0.01
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     if (S.opt.round && n > 2 && (i + 0.5 - n / 2) ** 2 + (j + 0.5 - n / 2) ** 2 > r2) continue   // pincel redondo: tira os cantos
     const px = x - half + i, py = y - half + j
-    for (const q of mirrored(s.f, px, py)) setPx(s, q.x, q.y, c)
+    if (!ditherOk(px, py)) continue
+    for (const q of mirrored(s.f, px, py)) { if (s.shade) shadePx(s, q.x, q.y); else setPx(s, q.x, q.y, c) }
   }
 }
 function restorePx(s: Stroke, x: number, y: number) {
@@ -217,9 +287,10 @@ function newStroke(f: Frame, erase: boolean): Stroke | null {
   const buf = doc.activeBuf(f)
   return { f, lid: f.layers ? f.activeLayer : 1, buf, before: buf.slice(), minx: 1e9, miny: 1e9, maxx: -1, maxy: -1, last: null, path: [], erase }
 }
-function beginStroke(f: Frame, x: number, y: number, erase: boolean) {
+function beginStroke(f: Frame, x: number, y: number, erase: boolean, shade = 0) {
   stroke = newStroke(f, erase)
   if (!stroke) { mode = 'ignore'; return }
+  if (shade) stroke.shade = shade
   strokeTo(stroke, x, y)
 }
 function patchCmd(fid: number, lid: number, before: Patch, after: Patch): Cmd {
@@ -1276,7 +1347,7 @@ function menuItems(wx: number, wy: number): MenuItem[] {
   if (S.tool === 'marquee' && pxLive()) {
     add('Copiar pixels', () => pxCopy(false), 'Ctrl+C'); add('Recortar pixels', () => pxCopy(true), 'Ctrl+X'); add('Colar pixels', () => pxPaste(), 'Ctrl+V', !pxClip); add('Apagar pixels', pxClear, 'Delete'); sep()
     add('Espelhar na horizontal', () => pxFlip('h'), 'Shift+H'); add('Espelhar na vertical', () => pxFlip('v'), 'Shift+V'); add('Girar 90° para a direita', () => pxRotate(1), 'Shift+R'); add('Girar 90° para a esquerda', () => pxRotate(-1)); add('Girar 180°', () => pxRotate(2)); sep()
-    add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Inverter seleção', () => { pxInvert(); invalidate() }, 'Ctrl+Shift+I'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
+    add('Contorno na cor atual', () => outlineAuto()); sep(); add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Inverter seleção', () => { pxInvert(); invalidate() }, 'Ctrl+Shift+I'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
     return it
   }
   if (n) {
@@ -1363,10 +1434,10 @@ ov.addEventListener('pointerdown', e => {
   if (nh && !doc.hit(w.x, w.y)) { selectNote(nh); noteDrag = { n: nh, ox: nh.x, oy: nh.y, snap0: snap([], [], [], false, [nh]), moved: false }; mode = 'notemove'; invalidate(); ui.panels(true); return }
   const f = doc.hit(w.x, w.y)
   switch (S.tool) {
-    case 'pencil': case 'eraser':
+    case 'pencil': case 'eraser': case 'shade':
       if (f) {
         selectFrame(f)
-        const begin = () => { const p = localPx(f, w.x, w.y); beginStroke(f, p.x, p.y, S.tool === 'eraser' || e.button === 2) }
+        const begin = () => { const p = localPx(f, w.x, w.y); beginStroke(f, p.x, p.y, S.tool === 'eraser' || (S.tool !== 'shade' && e.button === 2), S.tool === 'shade' ? ((S.shade === 'light') !== e.altKey ? 1 : -1) : 0) }
         if (e.pointerType === 'touch') { mode = 'pending'; pendingFn = begin; pendingTimer = window.setTimeout(() => { if (mode === 'pending' && ptrs.size === 1) runPending() }, 70) } // espera: pode ser o início de um gesto de 2 dedos
         else { mode = 'stroke'; begin() }
       } else mode = 'pan'
@@ -1626,6 +1697,7 @@ window.addEventListener('keydown', e => {
   if ((e.key === 'Delete' || e.key === 'Backspace') && S.tool === 'marquee' && psel) { e.preventDefault(); pxClear(); return }
   if (e.key === '?' || e.key === 'F1') { e.preventDefault(); ui.toggleHelp(); return }
   const map: Record<string, string> = { l: 'line', u: 'rect', o: 'ellipse', m: 'marquee', v: 'select', b: 'pencil', e: 'eraser', g: 'fill', i: 'picker', h: 'hand', f: 'frame', s: 'container', a: 'anim', t: 'note' }
+  if (!mod && k === 'd') { setTool('shade'); return }
   if (!mod && (k === 'w' || k === 'q')) { S.selMode = k === 'w' ? 'wand' : 'lasso'; setTool('marquee'); ui.ctxSync(); return }
   if (!mod && k === 'm') { S.selMode = 'rect'; setTool('marquee'); ui.ctxSync(); return }
   if (!mod && map[k]) { setTool(map[k]); return }
@@ -1853,7 +1925,7 @@ const ui = initUI({
   doc, S, selSet, store, hex2rgba, hexOf, PALETTE,
   core: {
     invalidate, touch, syncSel, selFrames, selectFrame, selectFrames, selectRef, selectCont, clearSel, selectNote, snap, commitSnap, change,
-    fname, cname, flyTo, focusFrame, fitRect, fitAll, stepZoom, snapZoom, getCam: () => cam, stageSize: () => ({ w: cssW, h: cssH }),
+    adjustColors, invertColors, outlineAuto, colorRamp, fname, cname, flyTo, focusFrame, fitRect, fitAll, stepZoom, snapZoom, getCam: () => cam, stageSize: () => ({ w: cssW, h: cssH }),
     placeFrame, setLastPreset: (w: number, h: number) => { lastPreset = { w, h } }, deleteSelection, duplicateSelection, groupSelection, ungroup, fitContainer, reshapeFrame,
     layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
     openContext, uploadCount: () => R.uploadCount, frameColors, recolorFrames, recolorBegin, recolorEnd, alignFrames, distributeFrames, layersState, layerOpacityLive, layerCommit, layerMergeDown, layerReorder, importAseprite, sliceSheet, importPaletteFile, extractPalette, newAnimation, setAnimOrder, setAnim, exportGodot, importProjectFile, newWorkspace: () => void createWorkspace(), goHome, renameWs, exportPng, exportAs, animFrames, exportGif, exportAseAnim, animAddFrame, animSame, saveProject, openProject, copyPng, exportScale, removeNote, NOTE_COLORS, setTool, setColor, toast, paletteById, paletteOf, boundsOf, spawn, runBench, perfInfo, w2s, hit: () => labelRects

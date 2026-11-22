@@ -17,15 +17,16 @@ export type UI = {
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const TOOLS: [string, string, string, string][] = [
   ['select', 'Selecionar', 'V', 'Selecionar e mover'], ['hand', 'Mão', 'H', 'Mão: mover a tela (ou segure Espaço)'], ['-', '', '', ''],
-  ['pencil', 'Lápis', 'B', 'Lápis'], ['eraser', 'Borracha', 'E', 'Borracha'], ['fill', 'Balde', 'G', 'Balde de tinta'], ['picker', 'Conta-gotas', 'I', 'Conta-gotas'], ['-', '', '', ''],
+  ['pencil', 'Lápis', 'B', 'Lápis'], ['eraser', 'Borracha', 'E', 'Borracha'], ['shade', 'Sombra', 'D', 'Sombra: clareia ou escurece o que já está pintado (Alt inverte)'], ['fill', 'Balde', 'G', 'Balde de tinta'], ['picker', 'Conta-gotas', 'I', 'Conta-gotas'], ['-', '', '', ''],
   ['line', 'Linha', 'L', 'Linha (Shift trava o ângulo)'], ['rect', 'Retângulo', 'U', 'Retângulo (Shift faz quadrado)'], ['ellipse', 'Elipse', 'O', 'Elipse (Shift faz círculo)'], ['marquee', 'Seleção', 'M', 'Seleção de pixels: arraste para selecionar e mover'], ['-', '', '', ''],
   ['frame', 'Quadro', 'F', 'Quadro: escolha um tamanho ou arraste na tela'], ['container', 'Contêiner', 'S', 'Contêiner: agrupa quadros'], ['anim', 'Animação', 'A', 'Animação: arraste sobre os quadros para criar um player que toca em loop'], ['note', 'Nota', 'T', 'Nota: clique na tela para escrever um comentário']
 ]
-const DRAW = ['pencil', 'eraser', 'fill', 'picker', 'line', 'rect', 'ellipse']
+const DRAW = ['pencil', 'eraser', 'shade', 'fill', 'picker', 'line', 'rect', 'ellipse']
 const HELP: [string, [string, string][]][] = [
   ['Ferramentas', [['Selecionar', 'V'], ['Mão (ou segure Espaço)', 'H'], ['Lápis', 'B'], ['Borracha', 'E'], ['Balde', 'G'], ['Conta-gotas', 'I'], ['Linha', 'L'], ['Retângulo', 'U'], ['Elipse', 'O'], ['Seleção de pixels', 'M'], ['Laço', 'Q'], ['Varinha mágica', 'W'], ['Quadro', 'F'], ['Contêiner', 'S'], ['Animação', 'A'], ['Nota', 'T']]],
   ['Desenho', [['Pincel menor / maior', '[  ]'], ['Espelho horizontal', 'X'], ['Espelho vertical', 'Y'], ['Cor da paleta', '1 a 0'], ['Travar ângulo, quadrado, círculo', 'Shift'], ['Apagar com o botão direito', 'Lápis / Borracha']]],
   ['Quadros e seleção', [['Selecionar vários', 'Shift + clique'], ['Selecionar tudo', 'Ctrl+A'], ['Agrupar em contêiner', 'Ctrl+G'], ['Desagrupar', 'Ctrl+Shift+G'], ['Duplicar', 'Ctrl+D'], ['Copiar / Colar', 'Ctrl+C / V'], ['Renomear', 'F2'], ['Excluir', 'Delete'], ['Mover 1 pixel', 'Setas'], ['Sem grudar nas guias', 'Ctrl ao arrastar']]],
+  ['Cores',[['Sombra: clarear / escurecer','D / Alt'],['Pontilhado','Painel Ferramenta'],['Contorno, ajustar cores','Painel Cor']]],
   ['Seleção de pixels (M)', [['Esticar ou amassar', 'Arraste as alças'], ['Manter a proporção', 'Shift + alça'], ['Mover a seleção', 'Arrastar / setas'], ['Arrastar uma cópia', 'Alt + arrastar'], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Selecionar tudo / desmarcar', 'Ctrl+A / Ctrl+D'], ['Inverter a seleção', 'Ctrl+Shift+I'], ['Laço, varinha mágica', 'Q, W'], ['Somar à seleção', 'Shift + clique']]],
   ['Ordem e forma', [['Trazer para frente', 'Ctrl+]'], ['Enviar para trás', 'Ctrl+['], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Ocultar', 'Ctrl+Shift+H'], ['Bloquear imagem', 'Ctrl+Shift+L']]],
   ['Tela', [['Ver tudo', 'Shift+1'], ['Ir até o quadro', 'Shift+2'], ['Zoom', 'Roda do mouse'], ['Mover a tela', 'Botão do meio / Espaço'], ['Menu do que está sob o cursor', 'Botão direito']]],
@@ -45,7 +46,7 @@ export function initUI(c: any): UI {
   // ------------------------------------------------------------ ferramentas
   const tb = $('tools')
   for (const [id, , key, title] of TOOLS) { if (id === '-') { const sp = document.createElement('span'); sp.className = 'tsep'; tb.appendChild(sp); continue } const b = document.createElement('button'); b.dataset.tool = id; b.innerHTML = icon(id) + `<kbd translate="no">${key}</kbd>`; b.title = `${title} (${key})`; b.setAttribute('aria-label', title); b.onclick = () => core.setTool(id); tb.appendChild(b) }
-  const toolCursor = (t: string) => (t === 'hand' ? 'grab' : ['pencil', 'eraser', 'fill', 'picker', 'frame', 'container', 'anim', 'note', 'line', 'rect', 'ellipse', 'marquee'].includes(t) ? 'crosshair' : 'default')
+  const toolCursor = (t: string) => (t === 'hand' ? 'grab' : ['pencil', 'eraser', 'shade', 'fill', 'picker', 'frame', 'container', 'anim', 'note', 'line', 'rect', 'ellipse', 'marquee'].includes(t) ? 'crosshair' : 'default')
   function toolChanged(t: string) {
     show('fillrow', t === 'rect' || t === 'ellipse'); show('onionrow', DRAW.includes(t)); show('tolrow', t === 'fill'); ctxSync()
     for (const b of tb.querySelectorAll('button')) b.classList.toggle('on', (b as HTMLElement).dataset.tool === t)
@@ -137,7 +138,20 @@ export function initUI(c: any): UI {
     for (const r of document.querySelectorAll<HTMLInputElement>('input.tol')) r.value = String(S.tol)
     for (const v of document.querySelectorAll<HTMLElement>('.tolv')) v.textContent = S.tol + '%'
     $('selhint').textContent = S.selMode === 'wand' ? 'Clique numa cor para selecionar os pixels parecidos que se tocam. Shift soma, Alt pega todos do quadro.' : S.selMode === 'lasso' ? 'Arraste para contornar à mão. Shift soma à seleção.' : 'Arraste para selecionar um retângulo.'
-    show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill')
+    show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill'); show('shaderow', S.tool === 'shade')
+    for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.classList.toggle('on', b.dataset.shade === S.shade)
+    const dsel = $<HTMLSelectElement>('dither'); if (dsel) dsel.value = String(S.dither)
+  }
+  for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.onclick = () => { S.shade = b.dataset.shade; ctxSync() }
+  $<HTMLSelectElement>('dither').onchange = e => { S.dither = Number((e.target as HTMLSelectElement).value) }
+  $('adjgo').onclick = () => { core.adjustColors(Number(val('adjh').value), Number(val('adjs').value), Number(val('adjl').value)); for (const id of ['adjh', 'adjs', 'adjl']) val(id).value = '0'; adjSync() }
+  function adjSync() { $('adjhv').textContent = val('adjh').value + '°'; $('adjsv').textContent = val('adjs').value + '%'; $('adjlv').textContent = val('adjl').value + '%' }
+  for (const id of ['adjh', 'adjs', 'adjl']) val(id).oninput = adjSync
+  $('adjinv').onclick = () => core.invertColors()
+  $('adjout').onclick = () => core.outlineAuto()
+  $('palramp').onclick = () => {
+    let n = 0; for (const h of core.colorRamp(S.color)) if (!S.mine.includes(h)) { S.mine.push(h); n++ }
+    store.set('kixel-mine', JSON.stringify(S.mine)); const f = curFrame(); if (f) core.change([f], [], [], () => { f.palId = 'mine' }); S.defaultPal = 'mine'; palKey = ''; renderPalette(); toast(n ? 'Rampa de tons guardada em Minha paleta' : 'Esses tons já estão em Minha paleta')
   }
   for (const b of document.querySelectorAll<HTMLElement>('#selmode [data-selmode]')) b.onclick = () => { S.selMode = b.dataset.selmode; ctxSync(); core.invalidate() }
   for (const r of document.querySelectorAll<HTMLInputElement>('input.tol')) r.oninput = () => { S.tol = Number(r.value); ctxSync() }
@@ -569,7 +583,7 @@ export function initUI(c: any): UI {
     show('s-frame', tabs && tab === 'quadro'); show('s-bg', tabs && tab === 'quadro'); show('s-layers', nF === 1 && tab === 'camadas')
     show('s-cont', !!k); show('s-ref', !!r); show('s-note', !!note)
     show('s-align', tabs && tab === 'quadro' && nF >= 2); show('s-sel', tabs && tab === 'cor')
-    show('s-color', none || (tabs && tab === 'cor') || (!tabs && draw)); show('s-tool', draw && (!tabs || tab === 'cor')); show('s-psel', S.tool === 'marquee' && (!tabs || tab === 'cor')); show('s-refadd', none); show('s-export', (tabs && tab === 'exportar'))
+    show('s-color', none || (tabs && tab === 'cor') || (!tabs && draw)); show('s-tool', draw && (!tabs || tab === 'cor')); show('s-psel', S.tool === 'marquee' && (!tabs || tab === 'cor')); show('s-adjust', nF >= 1 && (!tabs || tab === 'cor')); show('s-refadd', none); show('s-export', (tabs && tab === 'exportar'))
     // árvore
     const key = `${doc.version}|${doc.zorder.length}|${[...selSet].map((x: Frame) => x.id).join(',')}|${S.selCont?.id ?? 0}|${S.selRef?.id ?? 0}`
     if (key !== treeKey && !document.querySelector('#tree input.ren')) { treeKey = key; buildTree() }
