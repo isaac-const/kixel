@@ -1681,7 +1681,7 @@ async function importProjectFile(f: File) {
   const now = Date.now(), id = W.newId()
   await W.putWs({ id, name: f.name.replace(/\.[^.]+$/, ''), created: now, updated: now, frames: 0 }, f); location.hash = '#/w/' + id
 }
-const players = initPlayers({ doc, stage: $('stage'), animFrames, cname, w2s, stageSize: () => ({ w: cssW, h: cssH }), zoom: () => cam.zoom, uploads: () => R.uploadCount, touch, hex2rgba, reorder: setAnimOrder, pick: f => selectFrame(f) })
+const players = initPlayers({ doc, stage: $('stage'), animFrames, cname, w2s, stageSize: () => ({ w: cssW, h: cssH }), zoom: () => cam.zoom, uploads: () => R.uploadCount, touch, hex2rgba, reorder: setAnimOrder, pick: f => selectFrame(f), setDur: (f, ms) => change([f], [], [], () => { f.dur = ms }) })
 const home = initHome({
   list: W.listWs, open: id => { location.hash = '#/w/' + id }, create: () => void createWorkspace(),
   rename: async (id, name) => { const m = await W.getMeta(id); if (m) { await W.putMeta({ ...m, name }); await home.refresh() } },

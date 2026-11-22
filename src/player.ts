@@ -8,11 +8,10 @@ export type PlayerCtx = {
   animFrames(c: Cont): Frame[]; cname(c: Cont): string
   w2s(x: number, y: number): { x: number; y: number }; stageSize(): { w: number; h: number }; zoom(): number
   uploads(): number; touch(): void; hex2rgba(h: string): number[]
-  reorder(k: Cont, ids: number[] | undefined): void; pick(f: Frame): void
+  reorder(k: Cont, ids: number[] | undefined): void; pick(f: Frame): void; setDur(f: Frame, ms: number | undefined): void
 }
-const SPEEDS = [0.25, 0.5, 1, 2, 4]
-const fmtSpeed = (s: number) => (s < 1 ? String(s).replace('0.', '.') : String(s)) + '×'
-type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string }
+const clampSpeed = (v: number) => Math.max(0.1, Math.min(10, Math.round(v * 100) / 100))
+type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLInputElement; durIn: HTMLInputElement; durLbl: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string }
 
 export function initPlayers(c: PlayerCtx) {
   const layer = document.createElement('div'); layer.id = 'players'; c.stage.append(layer)
@@ -28,19 +27,26 @@ export function initPlayers(c: PlayerCtx) {
         <button class="prev" title="Frame anterior" aria-label="Frame anterior">${icon('skipb')}</button>
         <button class="play" title="Tocar ou pausar" aria-label="Tocar ou pausar"></button>
         <button class="next" title="Próximo frame" aria-label="Próximo frame">${icon('skipf')}</button>
-        <label class="fp" title="Quadros por segundo"><input type="number" min="1" max="60" aria-label="Quadros por segundo" /><i>fps</i></label>
+        <label class="fp" title="Quadros por segundo"><input type="number" min="1" max="120" aria-label="Quadros por segundo" /><i>fps</i></label>
       </div>
-      <div class="aspd"><span>Velocidade</span><span class="spd"><button class="slow" title="Mais devagar" aria-label="Mais devagar">−</button><em></em><button class="fast" title="Mais rápido" aria-label="Mais rápido">+</button></span></div>`
+      <div class="aspd"><span>Velocidade</span><span class="spd"><button class="slow" title="Mais devagar (Shift: ajuste fino)" aria-label="Mais devagar">−</button><label class="sv" title="Velocidade da prévia, de 0,1× a 10×: digite ou role o mouse aqui"><input type="number" min="0.1" max="10" step="0.05" aria-label="Velocidade" /><i>×</i></label><button class="fast" title="Mais rápido (Shift: ajuste fino)" aria-label="Mais rápido">+</button></span></div>
+      <div class="aspd adur"><span class="dl">Duração do frame</span><label class="dv" title="Quanto tempo este frame fica na tela. Vazio usa o FPS."><input type="number" min="10" step="5" aria-label="Duração do frame em milissegundos" /><i>ms</i></label></div>`
     layer.append(el)
     const q = (s: string) => el.querySelector(s) as HTMLElement
-    const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.spd em'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '' }
+    const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.sv input') as HTMLInputElement, durIn: q('.dv input') as HTMLInputElement, durLbl: q('.dl'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '' }
     const step = (d: number) => { const k2 = cont(k.id); if (!k2) return; const n = c.animFrames(k2).length; if (!n) return; k2.paused = true; p.idx = (p.idx + d + n) % n; p.t = performance.now(); p.key = ''; c.touch() }
     q('.prev').onclick = () => step(-1); q('.next').onclick = () => step(1)
     p.play.onclick = () => { const k2 = cont(k.id); if (k2) { k2.paused = !k2.paused; p.t = performance.now(); c.touch() } }
-    const speed = (d: number) => { const k2 = cont(k.id); if (!k2) return; let i = SPEEDS.indexOf(k2.speed ?? 1); if (i < 0) i = 2; k2.speed = SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, i + d))]; c.touch() }
-    q('.slow').onclick = () => speed(-1); q('.fast').onclick = () => speed(1)
+    const setSpeed = (v: number) => { const k2 = cont(k.id); if (k2) { k2.speed = clampSpeed(v); c.touch() } }
+    q('.slow').onclick = e => setSpeed((cont(k.id)?.speed ?? 1) - ((e as MouseEvent).shiftKey ? 0.05 : 0.25))
+    q('.fast').onclick = e => setSpeed((cont(k.id)?.speed ?? 1) + ((e as MouseEvent).shiftKey ? 0.05 : 0.25))
+    p.spd.onchange = () => setSpeed(Number(p.spd.value) || 1)
+    p.spd.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') p.spd.blur() })
+    q('.sv').addEventListener('wheel', e => { e.preventDefault(); const d = (e as WheelEvent).deltaY < 0 ? 1 : -1; setSpeed((cont(k.id)?.speed ?? 1) + d * ((e as WheelEvent).shiftKey ? 0.01 : 0.05)) }, { passive: false })
+    p.durIn.onchange = () => { const k2 = cont(k.id); if (!k2) return; const f = c.animFrames(k2)[p.idx]; const ms = Math.round(Number(p.durIn.value)); const nv = ms >= 10 ? ms : undefined; if (f && f.dur !== nv) c.setDur(f, nv) }
+    p.durIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') p.durIn.blur() })
     p.mode.onclick = () => { const k2 = cont(k.id); if (k2) { k2.pmode = k2.pmode === 'world' ? undefined : 'world'; p.sizeKey = ''; c.touch() } }
-    p.fps.onchange = () => { const k2 = cont(k.id); if (k2) { k2.fps = Math.max(1, Math.min(60, Number(p.fps.value) || 8)); c.touch() } }
+    p.fps.onchange = () => { const k2 = cont(k.id); if (k2) { k2.fps = Math.max(1, Math.min(120, Number(p.fps.value) || 8)); c.touch() } }
     p.fps.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') p.fps.blur() })
     return p
   }
@@ -112,13 +118,16 @@ export function initPlayers(c: PlayerCtx) {
       const fkey = list.map(x => x.id).join()
       if (fkey !== p.fkey) { p.fkey = fkey; p.tkey = ''; buildFilm(p, k, list) }
       if (up + '|' + fkey !== p.tkey) { p.tkey = up + '|' + fkey; const cvs = p.film.querySelectorAll('canvas'); list.forEach((x, i) => { if (cvs[i]) drawInto(cvs[i] as HTMLCanvasElement, x) }) }
-      const key = `${f?.id}|${up}|${p.idx}|${n}|${k.paused}|${speed}|${fps}|${world}|${c.cname(k)}`
+      const key = `${f?.id}|${up}|${p.idx}|${n}|${k.paused}|${speed}|${fps}|${world}|${f?.dur}|${c.cname(k)}`
       if (key === p.key) continue
       p.key = key
       p.none.style.display = n ? 'none' : ''
       if (f) drawInto(p.cv, f)
       p.title.textContent = c.cname(k); p.count.textContent = n ? `${p.idx + 1} / ${n}` : '0 / 0'
-      p.play.innerHTML = icon(k.paused ? 'play' : 'pause'); p.spd.textContent = fmtSpeed(speed); p.mode.setAttribute('aria-pressed', String(world))
+      p.play.innerHTML = icon(k.paused ? 'play' : 'pause'); p.mode.setAttribute('aria-pressed', String(world))
+      if (document.activeElement !== p.spd) p.spd.value = String(+speed.toFixed(2))
+      p.durLbl.textContent = n ? `Duração do frame ${p.idx + 1}` : 'Duração do frame'; p.durIn.placeholder = String(Math.round(1000 / fps))
+      if (document.activeElement !== p.durIn) p.durIn.value = f?.dur ? String(f.dur) : ''
       p.film.querySelectorAll('.th').forEach((t, i) => t.classList.toggle('on', i === p.idx))
       if (document.activeElement !== p.fps) p.fps.value = String(fps)
     }

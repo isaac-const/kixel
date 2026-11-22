@@ -371,7 +371,7 @@ export function initUI(c: any): UI {
     for (const id of ['gifout', 'aseanim', 'godotout']) $(id).toggleAttribute('disabled', !can)
   }
   $('animtoggle').onclick = () => { const k = S.selCont; if (k) core.setAnim(k, !k.anim) }
-  val('fps').onchange = () => { const k = S.selCont; if (k) { k.fps = Math.max(1, Math.min(60, Number(val('fps').value) || 8)); core.touch() } }
+  val('fps').onchange = () => { const k = S.selCont; if (k) { k.fps = Math.max(1, Math.min(120, Number(val('fps').value) || 8)); core.touch() } }
   $('animorder').onclick = () => { const k = S.selCont; if (k) core.setAnimOrder(k, undefined) }
   $('animnew').onclick = () => { const k = S.selCont; if (k) core.animAddFrame(k) }
   $('gifout').onclick = () => { const k = S.selCont; if (k) core.exportGif(k, fpsOf(k), val('gifscale').value, false) }
