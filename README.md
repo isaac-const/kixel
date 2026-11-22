@@ -120,6 +120,11 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Pincel da seleção:** o botão direito na seleção tem "Usar a seleção como pincel"; o carimbo mantém as cores.
 - **Camadas:** mesclagem (multiplicar, tela, sobrepor, somar), gravada também no .aseprite e no projeto, e travar transparência.
 
+## v15: sprite sheet, rotação livre e modos de reprodução
+- **Importar sprite sheet:** corta uma imagem em quadros do tamanho informado (ex.: 16x16), ignora células vazias e monta uma animação na ordem da folha. Importar .aseprite com vários frames também liga o player agora.
+- **Girar em ângulo:** no menu do botão direito da seleção, com vizinho mais próximo (pixels nítidos).
+- **Reprodução:** em sequência, vai e volta ou de trás para frente, no botão do player; o GIF segue o modo escolhido.
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 

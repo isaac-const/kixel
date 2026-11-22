@@ -130,7 +130,7 @@ const focusFrame = (f: { x: number; y: number; w: number; h: number }) => flyTo(
 // ================================================================ histórico por "fotos" das propriedades
 const FK = ['x', 'y', 'name', 'bg', 'palId', 'parent', 'hidden', 'trace', 'activeLayer', 'dur'] as const
 const RK = ['x', 'y', 'w', 'h', 'opacity', 'locked', 'above', 'hidden', 'name', 'parent'] as const
-const CK = ['x', 'y', 'w', 'h', 'name', 'collapsed', 'anim', 'order', 'pmode'] as const
+const CK = ['x', 'y', 'w', 'h', 'name', 'collapsed', 'anim', 'order', 'pmode', 'loop'] as const
 const NK = ['x', 'y', 'w', 'h', 'text', 'color', 'size'] as const
 type Snap = { f: Map<number, any>; r: Map<number, any>; c: Map<number, any>; n: Map<number, any>; z?: string[] }
 const pickKeys = (o: any, keys: readonly string[]) => { const out: any = {}; for (const k of keys) out[k] = o[k]; return out }
@@ -681,7 +681,7 @@ async function openProject(file: Blob, quiet = false) {
   let d
   try { d = await parseProject(file) } catch (e) { toast('Não consegui abrir: ' + (e as Error).message); return }
   resetDoc()
-  for (const c of d.conts) { const k = doc.addCont(c.x, c.y, c.w, c.h, c.name, c.id); Object.assign(k, { collapsed: c.collapsed, anim: c.anim, fps: c.fps, speed: c.speed, paused: c.paused, order: c.order, pmode: c.pmode }) }
+  for (const c of d.conts) { const k = doc.addCont(c.x, c.y, c.w, c.h, c.name, c.id); Object.assign(k, { collapsed: c.collapsed, anim: c.anim, fps: c.fps, speed: c.speed, paused: c.paused, order: c.order, pmode: c.pmode, loop: c.loop }) }
   for (const fr of d.frames) {
     const g = doc.addFrame(fr.x, fr.y, fr.w, fr.h, fr.id)
     Object.assign(g, { name: fr.name, dur: fr.dur, bg: fr.bg, palId: fr.palId, parent: fr.parent, hidden: fr.hidden, trace: !!fr.trace, activeLayer: fr.activeLayer ?? 1 })
@@ -934,6 +934,33 @@ function layerReorder(f: Frame, id: number, toIndex: number) {
 
 // ---- importar: .aseprite, sprite sheet, paleta
 function freeSpot() { const b = doc.bounds(); return b ? { x: Math.round(b.x + b.w + 24), y: Math.round(b.y) } : { x: Math.round(cam.x - 8), y: Math.round(cam.y - 8) } }
+/** Corta uma imagem em células do mesmo tamanho; cada célula com algo vira um quadro, e todos entram num contêiner de animação. */
+async function importSheet(file: File) {
+  let bmp: ImageBitmap
+  try { bmp = await createImageBitmap(file) } catch { toast('Não consegui abrir essa imagem.'); return }
+  const v = prompt(tr('Tamanho de cada quadro da folha, em pixels (largura x altura)'), '16x16'); if (v === null) return
+  const m = v.toLowerCase().replace(/\s+/g, '').match(/^(\d+)[x×,](\d+)$/) ?? v.match(/^(\d+)$/)
+  const cw = m ? Number(m[1]) : 0, ch = m ? Number(m[2] ?? m[1]) : 0
+  if (!cw || !ch || cw > bmp.width || ch > bmp.height || cw > 2048 || ch > 2048) { toast('Tamanho inválido. Use algo como 16x16.'); return }
+  const cols = Math.floor(bmp.width / cw), rows = Math.floor(bmp.height / ch)
+  const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height
+  const cx = cv.getContext('2d', { willReadFrequently: true })!; cx.drawImage(bmp, 0, 0)
+  const base = file.name.replace(/\.[^.]+$/, ''), at = freeSpot(), recs: FrameRec[] = [], made: Frame[] = []
+  if (cols * rows > 400) { toast('Folha grande demais: no máximo 400 quadros.'); return }
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const d = cx.getImageData(c * cw, r * ch, cw, ch).data
+    let any = false; for (let i = 3; i < d.length; i += 4) if (d[i]) { any = true; break }
+    if (!any) continue
+    const g = doc.addFrame(at.x + c * (cw + 8), at.y + r * (ch + 8), cw, ch)
+    g.name = `${base} ${made.length + 1}`; g.palId = S.defaultPal; g.px.set(d)
+    R.upload(doc, g); made.push(g); recs.push(frameRec(g))
+  }
+  if (!made.length) { toast('A folha está vazia (sem pixels visíveis).'); return }
+  doc.push(addCmd(recs))
+  if (made.length > 1) { const b = boundsOf(made); const pd = contPad(made); setAnim(createContainer(b.x - pd, b.y - pd, b.w + pd * 2, b.h + pd * 2, made, [], base), true) } else selectFrame(made[0])
+  fitRect(boundsOf(made), 0.7); touch()
+  toast(`${made.length} quadro${made.length > 1 ? 's' : ''} de ${cw} × ${ch} px${made.length > 1 ? '. Eles viraram uma animação, com a ordem da folha.' : '.'}`)
+}
 async function importAseprite(file: File) {
   let a
   try { a = await parseAseprite(await file.arrayBuffer()) } catch (e) { toast('Não consegui abrir o .aseprite: ' + (e as Error).message); return }
@@ -946,7 +973,7 @@ async function importAseprite(file: File) {
     R.upload(doc, g); made.push(g); recs.push(frameRec(g))
   })
   doc.push(addCmd(recs))
-  if (made.length > 1) { const b = boundsOf(made); { const pd = contPad(made); createContainer(b.x - pd, b.y - pd, b.w + pd * 2, b.h + pd * 2, made, [], base) } } else selectFrame(made[0])
+  if (made.length > 1) { const b = boundsOf(made); { const pd = contPad(made); setAnim(createContainer(b.x - pd, b.y - pd, b.w + pd * 2, b.h + pd * 2, made, [], base), true) } } else selectFrame(made[0])
   fitRect(boundsOf(made), 0.7); touch()
   toast(`${file.name}: ${a.frames.length} frame${a.frames.length > 1 ? 's' : ''}, ${a.frames[0].layers.length} camada${a.frames[0].layers.length > 1 ? 's' : ''}${a.frames.length > 1 ? '. Os frames viraram uma animação no contêiner.' : '.'}`)
 }
@@ -1203,6 +1230,25 @@ function pxRotate(dir: 1 | -1 | 2) {
   const nx = Math.max(0, Math.min(p.f.w - nw, Math.round(cx - nw / 2))), ny = Math.max(0, Math.min(p.f.h - nh, Math.round(cy - nh / 2)))
   pxReplace(p, out, nx, ny, nw, nh)
 }
+function pxRotateFree(deg: number) {
+  const p = pxLive(); if (!p || !isFinite(deg) || deg % 360 === 0) return
+  const src = pxRegion(doc.activeBuf(p.f), p.f, p), w = p.w, h = p.h, a = (deg * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a)
+  const nw = Math.min(p.f.w, Math.max(1, Math.ceil(Math.abs(w * cs) + Math.abs(h * sn) - 1e-6))), nh = Math.min(p.f.h, Math.max(1, Math.ceil(Math.abs(w * sn) + Math.abs(h * cs) - 1e-6)))
+  const out = new Uint8Array(nw * nh * 4), cx = w / 2, cy = h / 2, ncx = nw / 2, ncy = nh / 2
+  for (let j = 0; j < nh; j++) for (let i = 0; i < nw; i++) {   // mapeamento inverso, vizinho mais próximo (pixels continuam nítidos)
+    const dx = i + 0.5 - ncx, dy = j + 0.5 - ncy
+    const sx = Math.floor(cx + dx * cs + dy * sn), sy = Math.floor(cy - dx * sn + dy * cs)
+    if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue
+    out.set(src.subarray((sy * w + sx) * 4, (sy * w + sx) * 4 + 4), (j * nw + i) * 4)
+  }
+  const nx = Math.max(0, Math.min(p.f.w - nw, Math.round(p.x + w / 2 - nw / 2))), ny = Math.max(0, Math.min(p.f.h - nh, Math.round(p.y + h / 2 - nh / 2)))
+  pxReplace(p, out, nx, ny, nw, nh)
+}
+function askRotate() {
+  const v = prompt(tr('Ângulo em graus (positivo gira para a direita)'), '45'); if (v === null) return
+  const d = Number(v.replace(',', '.')); if (!isFinite(d)) { toast('Digite um número, por exemplo 45.'); return }
+  pxRotateFree(d)
+}
 function pxNudge(dx: number, dy: number) {
   const p = pxLive(); if (!p) return
   const nx = Math.max(-(p.w - 1), Math.min(p.f.w - 1, p.x + dx)), ny = Math.max(-(p.h - 1), Math.min(p.f.h - 1, p.y + dy))
@@ -1323,8 +1369,14 @@ function composedPx(f: Frame, withBg: boolean): Uint8Array {
   return out
 }
 function animSame(list: Frame[]) { return list.length > 0 && list.every(f => f.w === list[0].w && f.h === list[0].h) }
+/** Ordem de reprodução conforme o modo do contêiner (em sequência, vai e volta, ao contrário). */
+function loopOrder(list: Frame[], mode?: 'pingpong' | 'reverse'): Frame[] {
+  if (mode === 'reverse') return [...list].reverse()
+  if (mode === 'pingpong' && list.length > 2) return [...list, ...list.slice(1, -1).reverse()]
+  return list
+}
 function exportGif(c: Cont, fps: number, scaleVal: string, withBg: boolean) {
-  const list = animFrames(c)
+  const list = loopOrder(animFrames(c), c.loop)
   if (list.length < 2) { toast('A animação precisa de ao menos 2 quadros dentro do contêiner.'); return }
   if (!animSame(list)) { toast('Todos os quadros do contêiner precisam ter o mesmo tamanho para virar GIF.'); return }
   const k = exportScale(list[0], scaleVal)
@@ -1369,7 +1421,7 @@ function menuItems(wx: number, wy: number): MenuItem[] {
   const add = (label: string, fn: () => void, key?: string, disabled = false) => it.push({ label, fn, key, disabled })
   if (S.tool === 'marquee' && pxLive()) {
     add('Copiar pixels', () => pxCopy(false), 'Ctrl+C'); add('Recortar pixels', () => pxCopy(true), 'Ctrl+X'); add('Colar pixels', () => pxPaste(), 'Ctrl+V', !pxClip); add('Apagar pixels', pxClear, 'Delete'); sep()
-    add('Espelhar na horizontal', () => pxFlip('h'), 'Shift+H'); add('Espelhar na vertical', () => pxFlip('v'), 'Shift+V'); add('Girar 90° para a direita', () => pxRotate(1), 'Shift+R'); add('Girar 90° para a esquerda', () => pxRotate(-1)); add('Girar 180°', () => pxRotate(2)); sep()
+    add('Espelhar na horizontal', () => pxFlip('h'), 'Shift+H'); add('Espelhar na vertical', () => pxFlip('v'), 'Shift+V'); add('Girar 90° para a direita', () => pxRotate(1), 'Shift+R'); add('Girar 90° para a esquerda', () => pxRotate(-1)); add('Girar 180°', () => pxRotate(2)); add('Girar em ângulo…', askRotate); sep()
     add('Usar a seleção como pincel', useAsBrush); add('Contorno na cor atual', () => outlineAuto()); sep(); add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Inverter seleção', () => { pxInvert(); invalidate() }, 'Ctrl+Shift+I'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
     return it
   }
@@ -1958,7 +2010,7 @@ const ui = initUI({
     invalidate, touch, syncSel, selFrames, selectFrame, selectFrames, selectRef, selectCont, clearSel, selectNote, snap, commitSnap, change,
     adjustColors, invertColors, outlineAuto, colorRamp, fname, cname, flyTo, focusFrame, fitRect, fitAll, stepZoom, snapZoom, getCam: () => cam, stageSize: () => ({ w: cssW, h: cssH }),
     placeFrame, setLastPreset: (w: number, h: number) => { lastPreset = { w, h } }, deleteSelection, duplicateSelection, groupSelection, ungroup, fitContainer, reshapeFrame,
-    layerSetProp, layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
+    layerSetProp, importSheet, layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
     openContext, uploadCount: () => R.uploadCount, frameColors, recolorFrames, recolorBegin, recolorEnd, alignFrames, distributeFrames, layersState, layerOpacityLive, layerCommit, layerMergeDown, layerReorder, importAseprite, sliceSheet, importPaletteFile, extractPalette, newAnimation, setAnimOrder, setAnim, exportGodot, importProjectFile, newWorkspace: () => void createWorkspace(), goHome, renameWs, exportPng, exportAs, animFrames, exportGif, exportAseAnim, animAddFrame, animSame, saveProject, openProject, copyPng, exportScale, removeNote, NOTE_COLORS, setTool, setColor, toast, paletteById, paletteOf, boundsOf, spawn, runBench, perfInfo, w2s, hit: () => labelRects
   }
 })

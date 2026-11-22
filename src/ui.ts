@@ -27,7 +27,7 @@ const HELP: [string, [string, string][]][] = [
   ['Desenho', [['Pincel menor / maior', '[  ]'], ['Espelho horizontal', 'X'], ['Espelho vertical', 'Y'], ['Cor da paleta', '1 a 0'], ['Travar ângulo, quadrado, círculo', 'Shift'], ['Apagar com o botão direito', 'Lápis / Borracha']]],
   ['Quadros e seleção', [['Selecionar vários', 'Shift + clique'], ['Selecionar tudo', 'Ctrl+A'], ['Agrupar em contêiner', 'Ctrl+G'], ['Desagrupar', 'Ctrl+Shift+G'], ['Duplicar', 'Ctrl+D'], ['Copiar / Colar', 'Ctrl+C / V'], ['Renomear', 'F2'], ['Excluir', 'Delete'], ['Mover 1 pixel', 'Setas'], ['Sem grudar nas guias', 'Ctrl ao arrastar']]],
   ['Cores',[['Sombra: clarear / escurecer','D / Alt'],['Pontilhado','Painel Ferramenta'],['Contorno, ajustar cores','Painel Cor']]],
-  ['Seleção de pixels (M)', [['Esticar ou amassar', 'Arraste as alças'], ['Manter a proporção', 'Shift + alça'], ['Mover a seleção', 'Arrastar / setas'], ['Arrastar uma cópia', 'Alt + arrastar'], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Selecionar tudo / desmarcar', 'Ctrl+A / Ctrl+D'], ['Inverter a seleção', 'Ctrl+Shift+I'], ['Laço, varinha mágica', 'Q, W'], ['Somar à seleção', 'Shift + clique']]],
+  ['Seleção de pixels (M)', [['Esticar ou amassar', 'Arraste as alças'], ['Manter a proporção', 'Shift + alça'], ['Mover a seleção', 'Arrastar / setas'], ['Arrastar uma cópia', 'Alt + arrastar'], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Selecionar tudo / desmarcar', 'Ctrl+A / Ctrl+D'], ['Inverter a seleção', 'Ctrl+Shift+I'], ['Laço, varinha mágica', 'Q, W'], ['Girar em ângulo', 'Menu do botão direito'], ['Somar à seleção', 'Shift + clique']]],
   ['Ordem e forma', [['Trazer para frente', 'Ctrl+]'], ['Enviar para trás', 'Ctrl+['], ['Espelhar horizontal / vertical', 'Shift+H / V'], ['Girar 90°', 'Shift+R'], ['Ocultar', 'Ctrl+Shift+H'], ['Bloquear imagem', 'Ctrl+Shift+L']]],
   ['Tela', [['Ver tudo', 'Shift+1'], ['Ir até o quadro', 'Shift+2'], ['Zoom', 'Roda do mouse'], ['Mover a tela', 'Botão do meio / Espaço'], ['Menu do que está sob o cursor', 'Botão direito']]],
   ['Arquivo', [['Desfazer / Refazer', 'Ctrl+Z / Ctrl+Shift+Z'], ['Salvar projeto', 'Ctrl+S'], ['Abrir projeto', 'Ctrl+O'], ['Salva sozinho no navegador', 'a cada poucos segundos'], ['Esta ajuda', '?']]]
@@ -299,6 +299,8 @@ export function initUI(c: any): UI {
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-al]')) b.onclick = () => core.alignFrames(b.dataset.al)
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-di]')) b.onclick = () => core.distributeFrames(b.dataset.di)
   $('aseload').onclick = () => val('asefile').click()
+  $('sheetload').onclick = () => val('sheetfile').click()
+  val('sheetfile').onchange = e => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void core.importSheet(f); (e.target as HTMLInputElement).value = '' }
   val('asefile').onchange = e => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void core.importAseprite(f); (e.target as HTMLInputElement).value = '' }
   $('palimport').onclick = () => val('palfile').click()
   val('palfile').onchange = e => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) void core.importPaletteFile(f); (e.target as HTMLInputElement).value = ''; palKey = '' }
@@ -355,7 +357,7 @@ export function initUI(c: any): UI {
       { label: 'Novo espaço de trabalho', fn: () => core.newWorkspace() },
       { label: 'Abrir arquivo .kixel…', key: 'Ctrl+O', fn: () => val('projfile').click() },
       { label: 'Baixar arquivo .kixel', key: 'Ctrl+S', fn: () => void core.saveProject() },
-      { label: 'Importar .aseprite…', fn: () => val('asefile').click() }, { sep: true, label: '' },
+      { label: 'Importar .aseprite…', fn: () => val('asefile').click() }, { label: 'Importar sprite sheet…', fn: () => val('sheetfile').click() }, { sep: true, label: '' },
       { label: 'Desfazer', key: 'Ctrl+Z', fn: () => { doc.undo(); core.invalidate() } }, { label: 'Refazer', key: 'Ctrl+Shift+Z', fn: () => { doc.redo(); core.invalidate() } },
       { label: 'Selecionar tudo', key: 'Ctrl+A', fn: () => core.selectFrames([...doc.frames.values()].filter((f: Frame) => !f.hidden)) }, { label: 'Ver tudo', key: 'Shift+1', fn: () => core.fitAll() }, { sep: true, label: '' },
       { label: 'Atalhos de teclado', key: '?', fn: () => toggleHelp() }, { sep: true, label: '' },

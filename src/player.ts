@@ -2,6 +2,7 @@
 // que toca os quadros de dentro (pausar, passo a passo, velocidade, FPS), com miniaturas para mudar a ordem.
 import type { Doc, Cont, Frame } from './doc'
 import { icon } from './icons'
+import { tr } from './i18n'
 
 export type PlayerCtx = {
   doc: Doc; stage: HTMLElement
@@ -11,7 +12,7 @@ export type PlayerCtx = {
   reorder(k: Cont, ids: number[] | undefined): void; pick(f: Frame): void; setDur(f: Frame, ms: number | undefined): void
 }
 const clampSpeed = (v: number) => Math.max(0.1, Math.min(10, Math.round(v * 100) / 100))
-type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLInputElement; durIn: HTMLInputElement; durLbl: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string; vh: number }
+type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLInputElement; durIn: HTMLInputElement; durLbl: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string; vh: number; dir: number; loopBtn?: HTMLElement; loops?: [string, string, string][] }
 
 /** Faixa livre da tela: abaixo das barras do topo e acima da barra de ferramentas (ou da paleta, no celular). */
 const BARS = ['ctx', 'zoombox', 'mtop', 'tools', 'palette2']
@@ -42,6 +43,7 @@ export function initPlayers(c: PlayerCtx) {
         <button class="prev" title="Frame anterior" aria-label="Frame anterior">${icon('skipb')}</button>
         <button class="play" title="Tocar ou pausar" aria-label="Tocar ou pausar"></button>
         <button class="next" title="Próximo frame" aria-label="Próximo frame">${icon('skipf')}</button>
+        <button class="loopm" title="" aria-label="Modo de reprodução"></button>
         <label class="fp" title="Quadros por segundo"><input type="number" min="1" max="120" aria-label="Quadros por segundo" /><i>fps</i></label>
       </div>
       <div class="aspd"><span>Velocidade</span><span class="spd"><button class="slow" title="Mais devagar (Shift: ajuste fino)" aria-label="Mais devagar">−</button><label class="sv" title="Velocidade da prévia, de 0,1× a 10×: digite ou role o mouse aqui"><input type="number" min="0.1" max="10" step="0.05" aria-label="Velocidade" /><i>×</i></label><button class="fast" title="Mais rápido (Shift: ajuste fino)" aria-label="Mais rápido">+</button></span></div>
@@ -52,7 +54,7 @@ export function initPlayers(c: PlayerCtx) {
     if (matchMedia('(max-width:900px)').matches) el.classList.add('mini')   // no celular o player começa compacto
     const moreBtn = q('.more'); moreBtn.setAttribute('aria-pressed', String(!el.classList.contains('mini')))
     moreBtn.onclick = () => { el.classList.toggle('mini'); moreBtn.setAttribute('aria-pressed', String(!el.classList.contains('mini'))); p.sizeKey = ''; p.vh = 0 }
-    const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.sv input') as HTMLInputElement, durIn: q('.dv input') as HTMLInputElement, durLbl: q('.dl'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '', vh: 0 }
+    const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.sv input') as HTMLInputElement, durIn: q('.dv input') as HTMLInputElement, durLbl: q('.dl'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '', vh: 0, dir: 1 }
     const step = (d: number) => { const k2 = cont(k.id); if (!k2) return; const n = c.animFrames(k2).length; if (!n) return; k2.paused = true; p.idx = (p.idx + d + n) % n; p.t = performance.now(); p.key = ''; c.touch() }
     q('.prev').onclick = () => step(-1); q('.next').onclick = () => step(1)
     p.play.onclick = () => { const k2 = cont(k.id); if (k2) { k2.paused = !k2.paused; p.t = performance.now(); c.touch() } }
@@ -64,6 +66,9 @@ export function initPlayers(c: PlayerCtx) {
     q('.sv').addEventListener('wheel', e => { e.preventDefault(); const d = (e as WheelEvent).deltaY < 0 ? 1 : -1; setSpeed((cont(k.id)?.speed ?? 1) + d * ((e as WheelEvent).shiftKey ? 0.01 : 0.05)) }, { passive: false })
     p.durIn.onchange = () => { const k2 = cont(k.id); if (!k2) return; const f = c.animFrames(k2)[p.idx]; const ms = Math.round(Number(p.durIn.value)); const nv = ms >= 10 ? ms : undefined; if (f && f.dur !== nv) c.setDur(f, nv) }
     p.durIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') p.durIn.blur() })
+    const loopBtn = q('.loopm'), LOOPS = [['', 'loopf', 'Reprodução em sequência (clique para mudar)'], ['pingpong', 'loopp', 'Vai e volta (clique para mudar)'], ['reverse', 'loopr', 'De trás para frente (clique para mudar)']] as const
+    loopBtn.onclick = () => { const k2 = cont(k.id); if (!k2) return; const i = LOOPS.findIndex(l => l[0] === (k2.loop ?? '')); k2.loop = (LOOPS[(i + 1) % 3][0] || undefined) as Cont['loop']; p.dir = k2.loop === 'reverse' ? -1 : 1; c.touch() }
+    p.loopBtn = loopBtn; p.loops = LOOPS as unknown as [string, string, string][]
     p.mode.onclick = () => { const k2 = cont(k.id); if (k2) { k2.pmode = k2.pmode === 'world' ? undefined : 'world'; p.sizeKey = ''; c.touch() } }
     p.fps.onchange = () => { const k2 = cont(k.id); if (k2) { k2.fps = Math.max(1, Math.min(120, Number(p.fps.value) || 8)); c.touch() } }
     p.fps.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') p.fps.blur() })
@@ -108,7 +113,15 @@ export function initPlayers(c: PlayerCtx) {
       const list = c.animFrames(k), n = list.length, speed = k.speed ?? 1, fps = k.fps ?? 8, world = k.pmode === 'world'
       if (p.idx >= n) p.idx = 0
       // reprodução (cada frame pode ter a sua duração; a velocidade multiplica tudo)
-      if (n > 1 && !k.paused) { const delay = (list[p.idx].dur ?? 1000 / fps) / speed; if (now - p.t >= delay) { p.idx = (p.idx + 1) % n; p.t = now } } else p.t = now
+      if (n > 1 && !k.paused) {
+        const delay = (list[p.idx].dur ?? 1000 / fps) / speed
+        if (now - p.t >= delay) {
+          if (k.loop === 'pingpong') { let nx = p.idx + p.dir; if (nx >= n || nx < 0) { p.dir = -p.dir; nx = p.idx + p.dir } p.idx = nx }
+          else p.idx = ((p.idx + (k.loop === 'reverse' ? -1 : 1)) % n + n) % n
+          p.t = now
+        }
+      } else p.t = now
+      { const L = (p.loops ?? []).find(l => l[0] === (k.loop ?? '')); if (L && p.loopBtn && p.loopBtn.dataset.m !== L[1]) { p.loopBtn.dataset.m = L[1]; p.loopBtn.innerHTML = icon(L[1]); p.loopBtn.title = tr(L[2]) } }
       const f = list[p.idx]
       // tamanho: fixo na tela, ou acompanhando o zoom (sprite no tamanho real do canvas)
       const sizeKey = world ? `w|${z}|${f?.w}|${f?.h}` : 's'

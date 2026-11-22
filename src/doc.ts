@@ -51,7 +51,7 @@ export type Ref = {
   parent?: number
 }
 
-export type Cont = { id: number; name: string; x: number; y: number; w: number; h: number; collapsed?: boolean; anim?: boolean; fps?: number; speed?: number; paused?: boolean; order?: number[]; pmode?: 'world' }
+export type Cont = { id: number; name: string; x: number; y: number; w: number; h: number; collapsed?: boolean; anim?: boolean; fps?: number; speed?: number; paused?: boolean; order?: number[]; pmode?: 'world'; loop?: 'pingpong' | 'reverse' }
 
 export type Note = { id: number; text: string; x: number; y: number; w: number; h: number; color: string; size: number }  // tudo em unidades do mundo (escala com o zoom, como as imagens)
 
