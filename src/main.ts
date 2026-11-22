@@ -9,7 +9,7 @@ import { tr, initI18n, onLang, locale } from './i18n'
 import { initPlayers } from './player'
 import * as W from './workspaces'
 import * as shp from './shapes'
-import { buildAseprite, buildSvg, buildSheet, buildGpl, buildGodotTres, buildGodotTresMulti, serializeProject, parseProject, parseAseprite, unb64 } from './exporters'
+import { type AseTag, buildAseprite, buildSvg, buildSheet, buildGpl, buildGodotTres, buildGodotTresMulti, serializeProject, parseProject, parseAseprite, unb64 } from './exporters'
 import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 
@@ -28,7 +28,7 @@ const S = {
   color: hex2rgba(PALETTE[3]), tool: 'pencil', brush: 1,
   sel: null as Frame | null, selRef: null as Ref | null, selCont: null as Cont | null, selNote: null as Note | null,
   lastSel: null as Frame | null, hover: null as { wx: number; wy: number } | null, spaceDown: false,
-  opacity: 100, brushImg: null as { w: number; h: number; data: Uint8Array } | null, shade: 'light' as 'light' | 'dark', dither: 0, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { tile: false, mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
+  opacity: 100, onionN: 1, brushImg: null as { w: number; h: number; data: Uint8Array } | null, shade: 'light' as 'light' | 'dark', dither: 0, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { onionNext: false, tile: false, mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
   mine: (() => { try { const v = JSON.parse(store.get('kixel-mine') || 'null'); return Array.isArray(v) ? v as string[] : PALETTE.slice(0, 8) } catch { return PALETTE.slice(0, 8) } })()
 }
 const selSet = new Set<Frame>()
@@ -974,7 +974,9 @@ async function importAseprite(file: File) {
     R.upload(doc, g); made.push(g); recs.push(frameRec(g))
   })
   doc.push(addCmd(recs))
-  if (made.length > 1) { const b = boundsOf(made); { const pd = contPad(made); setAnim(createContainer(b.x - pd, b.y - pd, b.w + pd * 2, b.h + pd * 2, made, [], base), true) } } else selectFrame(made[0])
+  if (made.length > 1) { const b = boundsOf(made); { const pd = contPad(made); const k = createContainer(b.x - pd, b.y - pd, b.w + pd * 2, b.h + pd * 2, made, [], base); setAnim(k, true)
+    if (a.tags.length) k.tags = a.tags.filter(t => t.from <= t.to && t.from < made.length).map((t, i) => ({ id: i + 1, name: t.name, ids: made.slice(t.from, t.to + 1).map(g => g.id), loop: t.dir }))
+  } } else selectFrame(made[0])
   fitRect(boundsOf(made), 0.7); touch()
   toast(`${file.name}: ${a.frames.length} frame${a.frames.length > 1 ? 's' : ''}, ${a.frames[0].layers.length} camada${a.frames[0].layers.length > 1 ? 's' : ''}${a.frames.length > 1 ? '. Os frames viraram uma animação no contêiner.' : '.'}`)
 }
@@ -1421,10 +1423,19 @@ function exportGodot(c: Cont | null) {
   toast(`Godot: baixando ${base}.png e ${base}.tres. Coloque os dois na pasta do projeto (res://) e use o .tres em um AnimatedSprite2D.`)
 }
 async function exportAseAnim(c: Cont, fps: number) {
-  const list = playFrames(c)
+  const list = animFrames(c)   // todos os frames, na ordem do contêiner; as tags viram tags do Aseprite
   if (list.length < 2 || !animSame(list)) { toast('Precisa de 2 ou mais quadros do mesmo tamanho dentro do contêiner.'); return }
-  download(await buildAseprite(list, true, delaysOf(list, fps)), `${cname(c).replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-') || 'animacao'}-${list[0].w}x${list[0].h}.aseprite`)
-  toast(`.aseprite com ${list.length} frames de animação.`)
+  const tags: AseTag[] = []   // uma tag do Aseprite por trecho seguido de frames da tag
+  for (const t of c.tags ?? []) {
+    let from = -1, n = 0
+    for (let i = 0; i <= list.length; i++) {
+      const inside = i < list.length && t.ids.includes(list[i].id)
+      if (inside && from < 0) from = i
+      if (!inside && from >= 0) { n++; tags.push({ name: n > 1 ? `${t.name} ${n}` : t.name, from, to: i - 1, dir: t.loop }); from = -1 }
+    }
+  }
+  download(await buildAseprite(list, true, delaysOf(list, fps), tags), `${cname(c).replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-') || 'animacao'}-${list[0].w}x${list[0].h}.aseprite`)
+  toast(`.aseprite com ${list.length} frames de animação${tags.length ? ` e ${tags.length} tag${tags.length > 1 ? 's' : ''}` : ''}.`)
 }
 function animAddFrame(c: Cont) {
   const list = animFrames(c), src = list[list.length - 1]
@@ -1861,7 +1872,7 @@ function drawNote(n: Note) {
   label((n.text.split('\n')[0] || tr('Nota')).slice(0, 30), r.x, r.y - 4, on ? ACC : MUT, null, { k: 'n', id: n.id }, Math.max(90, r.w))
 }
 let tileCv: { id: number; up: number; cv: HTMLCanvasElement } | null = null
-let onion: { id: number; up: number; cv: HTMLCanvasElement } | null = null
+const onionCache = new Map<string, HTMLCanvasElement>()
 function drawOverlay() {
   syncSel()
   const dpr = R.dpr
@@ -1916,11 +1927,19 @@ function drawOverlay() {
     label(r.name + (r.locked ? tr(' · bloqueada') : ''), a.x, a.y - 4, on ? REFC : MUT, null, { k: 'r', id: r.id }, Math.max(90, a.w))
   }
   if (S.opt.onion && S.sel && S.sel.parent !== undefined && selSet.size === 1) {
-    const c = doc.conts.get(S.sel.parent), list = c ? animFrames(c) : [], i = list.indexOf(S.sel), prev = i > 0 ? list[i - 1] : null
-    if (prev && prev.w === S.sel.w && prev.h === S.sel.h && prev.w * prev.h <= 262144) {
-      if (!onion || onion.id !== prev.id || onion.up !== R.uploadCount) { const cv = document.createElement('canvas'); cv.width = prev.w; cv.height = prev.h; const id = new ImageData(prev.w, prev.h); id.data.set(prev.px); cv.getContext('2d')!.putImageData(id, 0, 0); onion = { id: prev.id, up: R.uploadCount, cv } }
-      const a = rectPx(S.sel); octx.save(); octx.imageSmoothingEnabled = false; octx.globalAlpha = 0.35; octx.drawImage(onion.cv, a.x, a.y, a.w, a.h); octx.restore()
+    // onion skin: os vizinhos na ordem da animação, os de antes em vermelho e os de depois em azul, mais fracos quanto mais longe
+    const c = doc.conts.get(S.sel.parent), list = c ? animFrames(c) : [], i = list.indexOf(S.sel), a = rectPx(S.sel)
+    const ghost = (g: Frame | undefined, tint: string, alpha: number) => {
+      if (!g || g.w !== S.sel!.w || g.h !== S.sel!.h || g.w * g.h > 262144) return
+      const key = `${g.id}|${R.uploadCount}|${tint}`; let cv = onionCache.get(key)
+      if (!cv) {
+        cv = document.createElement('canvas'); cv.width = g.w; cv.height = g.h; const x = cv.getContext('2d')!, id = new ImageData(g.w, g.h); id.data.set(g.px); x.putImageData(id, 0, 0)
+        x.globalCompositeOperation = 'source-atop'; x.fillStyle = tint; x.globalAlpha = 0.55; x.fillRect(0, 0, g.w, g.h)   // tinge só onde há pixel
+        if (onionCache.size > 24) onionCache.clear(); onionCache.set(key, cv)
+      }
+      octx.save(); octx.imageSmoothingEnabled = false; octx.globalAlpha = alpha; octx.drawImage(cv, a.x, a.y, a.w, a.h); octx.restore()
     }
+    for (let d = 1; d <= S.onionN; d++) { const al = 0.38 / d; ghost(list[i - d], '#ff4d6d', al); if (S.opt.onionNext) ghost(list[i + d], '#4d8dff', al) }
   }
   if (S.opt.tile && S.sel && doc.frames.get(S.sel.id) === S.sel && S.sel.w * S.sel.h <= 262144) {   // modo tile: mostra as repetições em volta do quadro
     const f = S.sel
@@ -2113,7 +2132,7 @@ async function importProjectFile(f: File) {
 }
 const players = initPlayers({ doc, stage: $('stage'), animFrames: playFrames, effLoop, tagOf, setTag, setLoop, openTimeline: (k: Cont) => timeline.open(k), cname, w2s, stageSize: () => ({ w: cssW, h: cssH }), zoom: () => cam.zoom, uploads: () => R.uploadCount, touch, hex2rgba, reorder: setAnimOrder, pick: f => selectFrame(f), setDur: (f, ms) => change([f], [], [], () => { f.dur = ms }) })
 const timeline = initTimeline({
-  doc, cname, animFrames, tagOf, setTag, tagAdd, tagEdit, tagDelete, setLoop, effLoop, reorder: setAnimOrder, pick: (f: Frame) => selectFrame(f), uploads: () => R.uploadCount, undo: () => { doc.undo(); invalidate() }, redo: () => { doc.redo(); invalidate() }, toast,
+  doc, cname, animFrames, tagOf, setTag, tagAdd, tagEdit, tagDelete, setLoop, effLoop, reorder: setAnimOrder, pick: (f: Frame) => selectFrame(f), uploads: () => R.uploadCount, setDur: (ids: number[], ms: number | undefined) => { const fr = ids.map(id => doc.frames.get(id)).filter((f): f is Frame => !!f); change(fr, [], [], () => { for (const f of fr) f.dur = ms }) }, undo: () => { doc.undo(); invalidate() }, redo: () => { doc.redo(); invalidate() }, toast,
 })
 const home = initHome({
   list: W.listWs, open: id => { location.hash = '#/w/' + id }, create: () => void createWorkspace(),

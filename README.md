@@ -129,6 +129,11 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Tags (ações):** cada contêiner pode ter grupos de frames como "andar" e "atacar". Os botões ficam no player e no painel do contêiner; a tag escolhida é a que toca, vira GIF e .aseprite. O Godot exporta uma animação por tag, mais a "default" com tudo.
 - **Organizar frames:** janela grande (botão no player, no painel ou no menu do contêiner) com seleção múltipla (Shift e Ctrl), arrastar em bloco, mover com `[` e `]`, levar ao início ou ao fim, inverter e voltar à ordem pela tela. Cada tag tem o próprio modo de reprodução (em sequência, vai e volta, ao contrário).
 
+## v17: onion skin, duração em lote e tags no Aseprite
+- **Onion skin:** 1 a 3 frames de cada lado, os de antes em vermelho e os de depois (opcional) em azul, mais fracos quanto mais longe.
+- **Duração em lote:** no organizador, selecione frames e defina os milissegundos de todos de uma vez.
+- **Aseprite:** o .aseprite exporta todos os frames com as tags como tags do Aseprite (uma por trecho seguido) e a importação recria as tags.
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 

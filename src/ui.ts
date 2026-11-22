@@ -140,10 +140,11 @@ export function initUI(c: any): UI {
     $('selhint').textContent = S.selMode === 'wand' ? 'Clique numa cor para selecionar os pixels parecidos que se tocam. Shift soma, Alt pega todos do quadro.' : S.selMode === 'lasso' ? 'Arraste para contornar à mão. Shift soma à seleção.' : 'Arraste para selecionar um retângulo.'
     show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill'); show('shaderow', S.tool === 'shade')
     for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.classList.toggle('on', b.dataset.shade === S.shade)
-    show('brushimgrow', !!S.brushImg)
+    show('brushimgrow', !!S.brushImg); show('onionopts', !!S.opt.onion && DRAW.includes(S.tool)); { const on = $<HTMLSelectElement>('onionn'); if (on) on.value = String(S.onionN) }
     const dsel = $<HTMLSelectElement>('dither'); if (dsel) dsel.value = String(S.dither)
   }
   for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.onclick = () => { S.shade = b.dataset.shade; ctxSync() }
+  $<HTMLSelectElement>('onionn').onchange = e => { S.onionN = Number((e.target as HTMLSelectElement).value); core.invalidate() }
   $<HTMLSelectElement>('dither').onchange = e => { S.dither = Number((e.target as HTMLSelectElement).value) }
   $<HTMLSelectElement>('lblend').onchange = e => { const f = single(); if (f) core.layerSetProp(f, 'blend', (e.target as HTMLSelectElement).value); layKey = ''; panels(true) }
   $('llock').onclick = () => { const f = single(); const act = f?.layers?.find((q: any) => q.id === f.activeLayer); if (f) core.layerSetProp(f, 'lock', !act?.lock); layKey = ''; panels(true) }

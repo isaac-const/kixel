@@ -28,7 +28,8 @@ const ASE_BLEND: Record<string, number> = { normal: 0, multiply: 1, screen: 2, o
 const layersOf = (f: Frame): L[] => (f.layers ? f.layers.map(l => ({ name: l.name, vis: l.vis, px: l.px, op: l.op, blend: l.blend })) : [{ name: tr('Camada') + ' 1', vis: true, px: f.px }])
 
 /** Gera um arquivo .aseprite (v1.3, RGBA). Com `animation`, cada quadro vira um frame de tempo (todos com o mesmo tamanho). */
-export async function buildAseprite(frames: Frame[], animation: boolean, durationMs: number | number[] = 100): Promise<Blob> {
+export type AseTag = { name: string; from: number; to: number; dir?: 'pingpong' | 'reverse' }
+export async function buildAseprite(frames: Frame[], animation: boolean, durationMs: number | number[] = 100, tags: AseTag[] = []): Promise<Blob> {
   const dur = (i: number) => Math.round(Array.isArray(durationMs) ? (durationMs[i] ?? 100) : durationMs)
   const first = frames[0], w = first.w, h = first.h
   const sets: L[][] = animation ? frames.map(f => [{ name: tr('Camada') + ' 1', vis: true, px: f.px }]) : [layersOf(first)]
@@ -40,6 +41,11 @@ export async function buildAseprite(frames: Frame[], animation: boolean, duratio
     if (fi === 0) for (const l of layers) {
       const c = new W(); c.u16(l.vis ? 3 : 2); c.u16(0); c.u16(0); c.u16(0); c.u16(0); c.u16(ASE_BLEND[l.blend ?? 'normal'] ?? 0); c.u8(Math.round((l.op ?? 1) * 255)); c.zero(3); c.str(l.name)
       chunks.push({ type: 0x2004, data: c.out() })
+    }
+    if (fi === 0 && tags.length) {   // tags de animação (faixas de frames): o Aseprite mostra como ações
+      const c = new W(); c.u16(tags.length); c.zero(8)
+      for (const t of tags) { c.u16(t.from); c.u16(t.to); c.u8(t.dir === 'reverse' ? 1 : t.dir === 'pingpong' ? 2 : 0); c.u16(0); c.zero(6); c.u8(0); c.u8(0); c.u8(0); c.u8(0); c.str(t.name) }
+      chunks.push({ type: 0x2018, data: c.out() })
     }
     for (let li = 0; li < layers.length; li++) {
       const c = new W(); c.u16(li); c.i16(0); c.i16(0); c.u8(255); c.u16(2); c.i16(0); c.zero(5); c.u16(w); c.u16(h); c.bytes(await deflate(layers[li].px))
@@ -133,7 +139,7 @@ export { unb64 }
 // ------------------------------------------------------------------ importar .aseprite
 export type AseLayer = { name: string; vis: boolean; op: number; px: Uint8Array; blend?: string }
 export type AseFrame = { dur: number; layers: AseLayer[] }
-export type AseFile = { w: number; h: number; frames: AseFrame[] }
+export type AseFile = { w: number; h: number; frames: AseFrame[]; tags: AseTag[] }
 const inflate = async (data: Uint8Array) => new Uint8Array(await new Response(new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer())
 
 export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
@@ -142,6 +148,7 @@ export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
   const nFrames = dv.getUint16(6, true), w = dv.getUint16(8, true), h = dv.getUint16(10, true), depth = dv.getUint16(12, true), transIdx = dv.getUint8(28)
   if (![8, 16, 32].includes(depth)) throw new Error('Formato de cor não suportado.')
   const pal: number[][] = []   // r, g, b, a
+  const tags: AseTag[] = []
   const metas: { name: string; vis: boolean; op: number; group: boolean; blend?: string }[] = []
   const frames: AseFrame[] = []
   let pos = 128
@@ -165,6 +172,12 @@ export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
       if (type === 0x2004) {
         const flags = dv.getUint16(d, true), ltype = dv.getUint16(d + 2, true), op = dv.getUint8(d + 12), bm = dv.getUint16(d + 10, true), nlen = dv.getUint16(d + 16, true)
         metas.push({ name: new TextDecoder().decode(u8.subarray(d + 18, d + 18 + nlen)), vis: !!(flags & 1), op: op / 255, group: ltype === 1, blend: bm === 1 ? 'multiply' : bm === 2 ? 'screen' : bm === 3 ? 'overlay' : bm === 16 ? 'add' : undefined })
+      } else if (type === 0x2018) {
+        const n = dv.getUint16(d, true); let q = d + 10
+        for (let i = 0; i < n; i++) {
+          const from = dv.getUint16(q, true), to = dv.getUint16(q + 2, true), dir = dv.getUint8(q + 4), nl = dv.getUint16(q + 17, true)
+          tags.push({ name: new TextDecoder().decode(u8.subarray(q + 19, q + 19 + nl)), from, to, dir: dir === 1 ? 'reverse' : dir >= 2 ? 'pingpong' : undefined }); q += 19 + nl
+        }
       } else if (type === 0x2019) {
         const first = dv.getUint32(d + 4, true), last = dv.getUint32(d + 8, true); let q = d + 20
         for (let i = first; i <= last; i++) { const fl = dv.getUint16(q, true); pal[i] = [dv.getUint8(q + 2), dv.getUint8(q + 3), dv.getUint8(q + 4), dv.getUint8(q + 5)]; q += 6; if (fl & 1) q += 2 + dv.getUint16(q, true) }
@@ -187,7 +200,7 @@ export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
     frames.push({ dur: dur || 100, layers })
     pos = fstart + fsize
   }
-  return { w, h, frames }
+  return { w, h, frames, tags }
 }
 
 // ------------------------------------------------------------------ Godot 4: SpriteFrames (.tres) apontando para a imagem (sprite sheet)

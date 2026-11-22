@@ -10,6 +10,7 @@ export type TLCtx = {
   tagAdd(c: Cont, ids: number[], name?: string): Tag; tagEdit(c: Cont, id: number, fn: (t: Tag) => Tag): void; tagDelete(c: Cont, id: number): void
   setLoop(c: Cont, m: 'pingpong' | 'reverse' | undefined): void; effLoop(c: Cont): 'pingpong' | 'reverse' | undefined
   reorder(k: Cont, ids: number[] | undefined): void; pick(f: Frame): void; uploads(): number
+  setDur(ids: number[], ms: number | undefined): void
   undo(): void; redo(): void; toast(msg: string): void
 }
 
@@ -32,6 +33,7 @@ export function initTimeline(c: TLCtx) {
           <button class="tlrev" title="Inverte a ordem de todos os frames mostrados">Inverter ordem</button>
           <button class="tlpos" title="Volta a usar a posição dos quadros na tela">Ordem pela tela</button>
           <span class="sp"></span>
+          <label class="tldur" title="Quanto tempo cada frame selecionado fica na tela. Vazio usa o FPS."><input type="number" min="10" step="5" placeholder="ms" aria-label="Duração dos selecionados em milissegundos" /><button class="tldurgo">Definir duração</button></label>
           <select class="tladd" aria-label="Adicionar a seleção a uma tag"></select>
           <button class="tlrm" title="Tira os frames selecionados da tag atual">Tirar da tag</button>
           <label class="tlloop" title="Como esta tag (ou a animação inteira) toca"><select class="tlloops" aria-label="Modo de reprodução"><option value="">Em sequência</option><option value="pingpong">Vai e volta</option><option value="reverse">Ao contrário</option></select></label>
@@ -89,6 +91,7 @@ export function initTimeline(c: TLCtx) {
     const add = q<HTMLSelectElement>('.tladd'); add.replaceChildren(new Option(tr('Adicionar à tag…'), '')); (add.firstChild as HTMLOptionElement).translate = false
     for (const t of kk.tags ?? []) { const o = new Option(t.name, String(t.id)); o.translate = false; add.add(o) }
     add.disabled = !sel.size || !(kk.tags ?? []).length
+    q('.tldurgo').toggleAttribute('disabled', !sel.size)
     q('.tlrm').toggleAttribute('disabled', !tag || !sel.size)
     q('.tlpos').toggleAttribute('disabled', !kk.order || !!tag)
     q<HTMLSelectElement>('.tlloops').value = c.effLoop(kk) ?? ''
@@ -167,6 +170,11 @@ export function initTimeline(c: TLCtx) {
   }
   q('.tlrm').onclick = () => { const kk = live(), t = kk && c.tagOf(kk); if (!kk || !t) return; c.tagEdit(kk, t.id, x => ({ ...x, ids: x.ids.filter(id => !sel.has(id)) })); sel.clear(); render() }
   q<HTMLSelectElement>('.tlloops').onchange = e => { const kk = live(); if (kk) { c.setLoop(kk, ((e.target as HTMLSelectElement).value || undefined) as Cont['loop']); render() } }
+  q('.tldurgo').onclick = () => {
+    const kk = live(); if (!kk || !sel.size) { c.toast('Selecione frames primeiro.'); return }
+    const v = Math.round(Number(q<HTMLInputElement>('.tldur input').value)), ms = v >= 10 ? v : undefined
+    c.setDur(idsInView().filter(id => sel.has(id)), ms); render()
+  }
   q('.tlundo').onclick = () => { c.undo(); render() }; q('.tlredo').onclick = () => { c.redo(); render() }
   q('.tlclose').onclick = close
   el.addEventListener('pointerdown', e => { if (e.target === el) close() })

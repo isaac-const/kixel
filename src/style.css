@@ -411,3 +411,6 @@ details.acc>summary{min-height:38px}details.acc>summary span[data-icon]{display:
 #tl .tlc.dropL::before,#tl .tlc.dropR::after{content:"";position:absolute;top:2px;bottom:2px;width:3px;border-radius:2px;background:var(--acc)}#tl .tlc.dropL::before{left:-7px}#tl .tlc.dropR::after{right:-7px}
 #tl .tlempty{grid-column:1/-1;color:var(--mut);font-size:13px;text-align:center;padding:30px 10px}
 @media (max-width:900px){#tl{padding:0}#tl .tlcard{height:100vh;width:100%;border-radius:0}#tl .tlbody{grid-template-columns:1fr;grid-template-rows:auto 1fr}#tl aside{border-right:0;border-bottom:1px solid var(--line);max-height:34vh}#tl .tlgrid{grid-template-columns:repeat(auto-fill,minmax(70px,1fr))}}
+#tl .tldur{display:inline-flex;gap:4px;align-items:center}#tl .tldur input{width:64px;background:var(--sunk);border:1px solid var(--line);color:var(--ink);border-radius:8px;height:32px;padding:0 8px;font:500 12px var(--f-ui)}
+#onionopts[hidden]{display:none}#onionopts>*{min-width:0}#onionopts .f{margin:0}
+#onionopts .f{display:flex;gap:6px;align-items:center;padding:0 8px}#onionopts .f select{flex:1;min-width:40px}
