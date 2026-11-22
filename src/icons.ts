@@ -62,6 +62,12 @@ import houseI from 'lucide-static/icons/house.svg?raw'
 import filmI from 'lucide-static/icons/film.svg?raw'
 import brushI from 'lucide-static/icons/brush.svg?raw'
 import dropletI from 'lucide-static/icons/droplet.svg?raw'
+import listOrdI from 'lucide-static/icons/list-ordered.svg?raw'
+import arrL from 'lucide-static/icons/arrow-left.svg?raw'
+import arrR from 'lucide-static/icons/arrow-right.svg?raw'
+import arrLL from 'lucide-static/icons/arrow-left-to-line.svg?raw'
+import arrRR from 'lucide-static/icons/arrow-right-to-line.svg?raw'
+import tagI from 'lucide-static/icons/tag.svg?raw'
 import repeatI from 'lucide-static/icons/repeat.svg?raw'
 import pingI from 'lucide-static/icons/arrow-left-right.svg?raw'
 import rewindI from 'lucide-static/icons/rewind.svg?raw'
@@ -76,7 +82,7 @@ import skipBI from 'lucide-static/icons/skip-back.svg?raw'
 import skipFI from 'lucide-static/icons/skip-forward.svg?raw'
 import copyImg from 'lucide-static/icons/clipboard-copy.svg?raw'
 
-export const ICONS: Record<string, string> = { loopf: repeatI, loopp: pingI, loopr: rewindI, sheet: sheetI, blend: blendI, shade: sunMoonI, anim: filmI, film: filmI, brush: brushI, droplet: dropletI, wandsp: wandSpI, flip: flipI, grid: gridI, ghost: ghostI, skipb: skipBI, skipf: skipFI, house: houseI, users: usersI, dots: dotsI, link: linkI, logout: logoutI, alignl: alignL, alignch: alignCH, alignr: alignR, alignt: alignT, aligncv: alignCV, alignb: alignB, disth: distH, distv: distV, keyboard: keyboardI, merge: mergeI, line: slashI, rect: squareI, ellipse: circleI, marquee: boxSelect, play: playI, pause: pauseI, note: stickyNote, upload: uploadI, code: fileCode, select: cursor, pencil, eraser, fill: bucket, picker: pipette, hand, frame, ref: image, image, undo, redo, zin: zoomIn, zout: zoomOut, fit: maximize, dup: copy, del: trash, download, panel: sliders, frames: grid, pin, pixelate: wand, close, plus, decal: dashed, folder, eye, eyeoff: eyeOff, lock, unlock, chevd: chevDown, chevr: chevRight, layers, up, down, group, ungroup, fitc: fit2, clip: copyImg, container: folder }
+export const ICONS: Record<string, string> = { listord: listOrdI, arrl: arrL, arrr: arrR, arrll: arrLL, arrrr: arrRR, tag: tagI, loopf: repeatI, loopp: pingI, loopr: rewindI, sheet: sheetI, blend: blendI, shade: sunMoonI, anim: filmI, film: filmI, brush: brushI, droplet: dropletI, wandsp: wandSpI, flip: flipI, grid: gridI, ghost: ghostI, skipb: skipBI, skipf: skipFI, house: houseI, users: usersI, dots: dotsI, link: linkI, logout: logoutI, alignl: alignL, alignch: alignCH, alignr: alignR, alignt: alignT, aligncv: alignCV, alignb: alignB, disth: distH, distv: distV, keyboard: keyboardI, merge: mergeI, line: slashI, rect: squareI, ellipse: circleI, marquee: boxSelect, play: playI, pause: pauseI, note: stickyNote, upload: uploadI, code: fileCode, select: cursor, pencil, eraser, fill: bucket, picker: pipette, hand, frame, ref: image, image, undo, redo, zin: zoomIn, zout: zoomOut, fit: maximize, dup: copy, del: trash, download, panel: sliders, frames: grid, pin, pixelate: wand, close, plus, decal: dashed, folder, eye, eyeoff: eyeOff, lock, unlock, chevd: chevDown, chevr: chevRight, layers, up, down, group, ungroup, fitc: fit2, clip: copyImg, container: folder }
 export const icon = (k: string) => ICONS[k] ?? ''
 export function hydrateIcons(root: ParentNode = document) {
   root.querySelectorAll<HTMLElement>('[data-icon]').forEach(el => { if (!el.querySelector(':scope > svg')) el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon!)) })

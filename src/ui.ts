@@ -399,11 +399,21 @@ export function initUI(c: any): UI {
     const k = S.selCont as Cont | null; if (!k) return
     const list: Frame[] = core.animFrames(k), same = core.animSame(list)
     $('animnote').textContent = !k.anim ? 'Ligue o player para ver os quadros do contêiner tocando em loop, ao lado dele, na tela.' : list.length < 2 ? 'Jogue 2 ou mais quadros de mesmo tamanho dentro do contêiner. Eles tocam no player em ordem de posição.' : same ? `${list.length} frames. Ordem: de cima para baixo, da esquerda para a direita.` : 'Os quadros têm tamanhos diferentes: igualem para exportar.'
+    { // chips das ações (tags): trocam o que o player e as exportações usam
+      const row = $('animtags'), tg: any[] = k.tags ?? [], key = JSON.stringify([k.id, tg.map(t => [t.id, t.name]), k.tag ?? 0])
+      if (row.dataset.k !== key) {
+        row.dataset.k = key; row.replaceChildren()
+        const chip = (label: string, id: number | undefined, on: boolean) => { const b = document.createElement('button'); b.className = 'tg' + (on ? ' on' : ''); b.textContent = label; b.translate = id === undefined; b.onclick = () => core.setTag(k, id); row.append(b) }
+        if (tg.length) { chip('Todos', undefined, !tg.some(t => t.id === k.tag)); for (const t of tg) chip(t.name, t.id, t.id === k.tag) }
+      }
+      row.hidden = !tg.length
+    }
     $('animtoggle').setAttribute('aria-pressed', String(!!k.anim)); show('animopts', true); show('orderrow', !!k.order)
     if (document.activeElement !== val('fps')) val('fps').value = String(fpsOf(k))
     const can = list.length >= 2 && same
     for (const id of ['gifout', 'aseanim', 'godotout']) $(id).toggleAttribute('disabled', !can)
   }
+  $('animtl').onclick = () => { const k = S.selCont; if (k) core.openTimeline(k) }
   $('animtoggle').onclick = () => { const k = S.selCont; if (k) core.setAnim(k, !k.anim) }
   val('fps').onchange = () => { const k = S.selCont; if (k) { k.fps = Math.max(1, Math.min(120, Number(val('fps').value) || 8)); core.touch() } }
   $('animorder').onclick = () => { const k = S.selCont; if (k) core.setAnimOrder(k, undefined) }

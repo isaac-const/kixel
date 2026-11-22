@@ -191,6 +191,13 @@ export async function parseAseprite(buf: ArrayBuffer): Promise<AseFile> {
 }
 
 // ------------------------------------------------------------------ Godot 4: SpriteFrames (.tres) apontando para a imagem (sprite sheet)
+/** Godot com várias animações (uma por tag). `anims` usa índices da lista de regiões; loop sempre ligado. */
+export function buildGodotTresMulti(png: string, regions: { x: number; y: number; w: number; h: number }[], durations: number[], fps: number, anims: { name: string; idx: number[] }[]): string {
+  const base = 1000 / Math.max(1, fps), n = regions.length
+  const subs = regions.map((r, i) => `[sub_resource type="AtlasTexture" id="AtlasTexture_${i + 1}"]\natlas = ExtResource("1_sheet")\nregion = Rect2(${r.x}, ${r.y}, ${r.w}, ${r.h})\n`).join('\n')
+  const one = (a: { name: string; idx: number[] }) => `{\n"frames": [${a.idx.map(i => `{\n"duration": ${+(durations[i] / base).toFixed(4)},\n"texture": SubResource("AtlasTexture_${i + 1}")\n}`).join(', ')}],\n"loop": true,\n"name": &"${a.name.replace(/["\\]/g, '')}",\n"speed": ${fps.toFixed(1)}\n}`
+  return `[gd_resource type="SpriteFrames" load_steps=${n + 2} format=3]\n\n[ext_resource type="Texture2D" path="res://${png}" id="1_sheet"]\n\n${subs}\n[resource]\nanimations = [${anims.map(one).join(', ')}]\n`
+}
 export function buildGodotTres(png: string, regions: { x: number; y: number; w: number; h: number }[], durations: number[], fps: number, anim = 'default'): string {
   const base = 1000 / Math.max(1, fps), n = regions.length
   const subs = regions.map((r, i) => `[sub_resource type="AtlasTexture" id="AtlasTexture_${i + 1}"]\natlas = ExtResource("1_sheet")\nregion = Rect2(${r.x}, ${r.y}, ${r.w}, ${r.h})\n`).join('\n')

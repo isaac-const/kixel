@@ -125,6 +125,10 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Girar em ângulo:** no menu do botão direito da seleção, com vizinho mais próximo (pixels nítidos).
 - **Reprodução:** em sequência, vai e volta ou de trás para frente, no botão do player; o GIF segue o modo escolhido.
 
+## v16: tags de animação e organizador de frames
+- **Tags (ações):** cada contêiner pode ter grupos de frames como "andar" e "atacar". Os botões ficam no player e no painel do contêiner; a tag escolhida é a que toca, vira GIF e .aseprite. O Godot exporta uma animação por tag, mais a "default" com tudo.
+- **Organizar frames:** janela grande (botão no player, no painel ou no menu do contêiner) com seleção múltipla (Shift e Ctrl), arrastar em bloco, mover com `[` e `]`, levar ao início ou ao fim, inverter e voltar à ordem pela tela. Cada tag tem o próprio modo de reprodução (em sequência, vai e volta, ao contrário).
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 

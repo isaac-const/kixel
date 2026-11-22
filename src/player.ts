@@ -1,18 +1,19 @@
 // Player de animação na tela: um contêiner com "Player na tela" ligado ganha uma janelinha ao lado dele
 // que toca os quadros de dentro (pausar, passo a passo, velocidade, FPS), com miniaturas para mudar a ordem.
-import type { Doc, Cont, Frame } from './doc'
+import type { Doc, Cont, Frame, Tag } from './doc'
 import { icon } from './icons'
 import { tr } from './i18n'
 
 export type PlayerCtx = {
   doc: Doc; stage: HTMLElement
   animFrames(c: Cont): Frame[]; cname(c: Cont): string
+  effLoop(c: Cont): 'pingpong' | 'reverse' | undefined; tagOf(c: Cont): Tag | undefined; setTag(c: Cont, id: number | undefined): void; setLoop(c: Cont, m: 'pingpong' | 'reverse' | undefined): void; openTimeline(c: Cont): void
   w2s(x: number, y: number): { x: number; y: number }; stageSize(): { w: number; h: number }; zoom(): number
   uploads(): number; touch(): void; hex2rgba(h: string): number[]
   reorder(k: Cont, ids: number[] | undefined): void; pick(f: Frame): void; setDur(f: Frame, ms: number | undefined): void
 }
 const clampSpeed = (v: number) => Math.max(0.1, Math.min(10, Math.round(v * 100) / 100))
-type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLInputElement; durIn: HTMLInputElement; durLbl: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string; vh: number; dir: number; loopBtn?: HTMLElement; loops?: [string, string, string][] }
+type P = { el: HTMLElement; cv: HTMLCanvasElement; view: HTMLElement; film: HTMLElement; title: HTMLElement; count: HTMLElement; play: HTMLElement; spd: HTMLInputElement; durIn: HTMLInputElement; durLbl: HTMLElement; mode: HTMLElement; fps: HTMLInputElement; none: HTMLElement; idx: number; t: number; key: string; fkey: string; tkey: string; w: number; h: number; pos: string; dragId: number; sizeKey: string; vh: number; dir: number; tagKey?: string; loopBtn?: HTMLElement; loops?: [string, string, string][] }
 
 /** Faixa livre da tela: abaixo das barras do topo e acima da barra de ferramentas (ou da paleta, no celular). */
 const BARS = ['ctx', 'zoombox', 'mtop', 'tools', 'palette2']
@@ -37,6 +38,7 @@ export function initPlayers(c: PlayerCtx) {
   function make(k: Cont): P {
     const el = document.createElement('div'); el.className = 'aplayer'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Player de animação')
     el.innerHTML = `<div class="ahead"><b></b><small></small><button class="more" aria-pressed="false" title="Mostrar ou esconder miniaturas, velocidade e duração" aria-label="Mais controles">${icon('chevd')}</button><button class="mode" aria-pressed="false" title="Tamanho da janela: ligado, o sprite acompanha o zoom do canvas (tamanho real). Desligado, a janela tem tamanho fixo na tela." aria-label="Acompanhar o zoom">${icon('pin')}</button></div>
+      <div class="atags" aria-label="Ações (tags) da animação"></div>
       <div class="aview"><canvas width="16" height="16"></canvas><div class="none">Jogue quadros de mesmo tamanho dentro do contêiner</div></div>
       <div class="afilm" aria-label="Ordem dos frames: arraste para mudar"></div>
       <div class="actl">
@@ -67,7 +69,7 @@ export function initPlayers(c: PlayerCtx) {
     p.durIn.onchange = () => { const k2 = cont(k.id); if (!k2) return; const f = c.animFrames(k2)[p.idx]; const ms = Math.round(Number(p.durIn.value)); const nv = ms >= 10 ? ms : undefined; if (f && f.dur !== nv) c.setDur(f, nv) }
     p.durIn.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') p.durIn.blur() })
     const loopBtn = q('.loopm'), LOOPS = [['', 'loopf', 'Reprodução em sequência (clique para mudar)'], ['pingpong', 'loopp', 'Vai e volta (clique para mudar)'], ['reverse', 'loopr', 'De trás para frente (clique para mudar)']] as const
-    loopBtn.onclick = () => { const k2 = cont(k.id); if (!k2) return; const i = LOOPS.findIndex(l => l[0] === (k2.loop ?? '')); k2.loop = (LOOPS[(i + 1) % 3][0] || undefined) as Cont['loop']; p.dir = k2.loop === 'reverse' ? -1 : 1; c.touch() }
+    loopBtn.onclick = () => { const k2 = cont(k.id); if (!k2) return; const i = LOOPS.findIndex(l => l[0] === (c.effLoop(k2) ?? '')); const m = (LOOPS[(i + 1) % 3][0] || undefined) as Cont['loop']; c.setLoop(k2, m); p.dir = m === 'reverse' ? -1 : 1 }
     p.loopBtn = loopBtn; p.loops = LOOPS as unknown as [string, string, string][]
     p.mode.onclick = () => { const k2 = cont(k.id); if (k2) { k2.pmode = k2.pmode === 'world' ? undefined : 'world'; p.sizeKey = ''; c.touch() } }
     p.fps.onchange = () => { const k2 = cont(k.id); if (k2) { k2.fps = Math.max(1, Math.min(120, Number(p.fps.value) || 8)); c.touch() } }
@@ -116,12 +118,12 @@ export function initPlayers(c: PlayerCtx) {
       if (n > 1 && !k.paused) {
         const delay = (list[p.idx].dur ?? 1000 / fps) / speed
         if (now - p.t >= delay) {
-          if (k.loop === 'pingpong') { let nx = p.idx + p.dir; if (nx >= n || nx < 0) { p.dir = -p.dir; nx = p.idx + p.dir } p.idx = nx }
-          else p.idx = ((p.idx + (k.loop === 'reverse' ? -1 : 1)) % n + n) % n
+          if (c.effLoop(k) === 'pingpong') { let nx = p.idx + p.dir; if (nx >= n || nx < 0) { p.dir = -p.dir; nx = p.idx + p.dir } p.idx = nx }
+          else p.idx = ((p.idx + (c.effLoop(k) === 'reverse' ? -1 : 1)) % n + n) % n
           p.t = now
         }
       } else p.t = now
-      { const L = (p.loops ?? []).find(l => l[0] === (k.loop ?? '')); if (L && p.loopBtn && p.loopBtn.dataset.m !== L[1]) { p.loopBtn.dataset.m = L[1]; p.loopBtn.innerHTML = icon(L[1]); p.loopBtn.title = tr(L[2]) } }
+      { const L = (p.loops ?? []).find(l => l[0] === (c.effLoop(k) ?? '')); if (L && p.loopBtn && p.loopBtn.dataset.m !== L[1]) { p.loopBtn.dataset.m = L[1]; p.loopBtn.innerHTML = icon(L[1]); p.loopBtn.title = L[2] } }
       const f = list[p.idx]
       // tamanho: fixo na tela, ou acompanhando o zoom (sprite no tamanho real do canvas)
       const sizeKey = world ? `w|${z}|${f?.w}|${f?.h}` : 's'
@@ -151,6 +153,16 @@ export function initPlayers(c: PlayerCtx) {
       const pos = off ? 'off' : `${Math.round(left)},${Math.round(top)}`
       if (pos !== p.pos) { p.pos = pos; p.el.style.display = off ? 'none' : ''; p.el.style.transform = `translate(${Math.round(left)}px,${Math.round(top)}px)` }
       if (off) continue
+      { // chips das ações (tags): troca a animação que está tocando
+        const tg = k.tags ?? [], tk = JSON.stringify([tg.map(t => [t.id, t.name]), k.tag ?? 0, c.doc.version > 0 ? 1 : 0])
+        if (tk !== p.tagKey) {
+          p.tagKey = tk; const row = p.el.querySelector('.atags') as HTMLElement; row.replaceChildren()
+          const chip = (label: string, id: number | undefined, on: boolean) => { const b = document.createElement('button'); b.className = 'tg' + (on ? ' on' : ''); b.textContent = label; b.translate = id === undefined; b.onclick = () => { c.setTag(k, id); p.idx = 0; p.key = ''; p.fkey = '' }; row.append(b) }
+          chip('Todos', undefined, !tg.some(t => t.id === k.tag))
+          for (const t of tg) chip(t.name, t.id, t.id === k.tag)
+          const org = document.createElement('button'); org.className = 'tg org'; org.innerHTML = icon('listord'); org.title = tg.length ? 'Organizar frames e tags' : 'Criar tags (ações) e organizar a ordem dos frames'; org.setAttribute('aria-label', 'Organizar frames e tags'); org.onclick = () => c.openTimeline(k); row.append(org)
+        }
+      }
       const fkey = list.map(x => x.id).join()
       if (fkey !== p.fkey) { p.fkey = fkey; p.tkey = ''; buildFilm(p, k, list) }
       if (up + '|' + fkey !== p.tkey) { p.tkey = up + '|' + fkey; const cvs = p.film.querySelectorAll('canvas'); list.forEach((x, i) => { if (cvs[i]) drawInto(cvs[i] as HTMLCanvasElement, x) }) }

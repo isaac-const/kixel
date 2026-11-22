@@ -1,4 +1,5 @@
-import { Doc, readPatch, writePatch, type Blend, type Frame, type Ref, type Cont, type Note, type Patch, type Cmd, type Layer } from './doc'
+import { initTimeline } from './timeline'
+import { Doc, readPatch, writePatch, type Tag, type Blend, type Frame, type Ref, type Cont, type Note, type Patch, type Cmd, type Layer } from './doc'
 import { Renderer, type Cam } from './gl'
 import { PALETTES } from './data'
 import { initUI, type MenuItem } from './ui'
@@ -8,7 +9,7 @@ import { tr, initI18n, onLang, locale } from './i18n'
 import { initPlayers } from './player'
 import * as W from './workspaces'
 import * as shp from './shapes'
-import { buildAseprite, buildSvg, buildSheet, buildGpl, buildGodotTres, serializeProject, parseProject, parseAseprite, unb64 } from './exporters'
+import { buildAseprite, buildSvg, buildSheet, buildGpl, buildGodotTres, buildGodotTresMulti, serializeProject, parseProject, parseAseprite, unb64 } from './exporters'
 import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'
 
@@ -130,7 +131,7 @@ const focusFrame = (f: { x: number; y: number; w: number; h: number }) => flyTo(
 // ================================================================ histórico por "fotos" das propriedades
 const FK = ['x', 'y', 'name', 'bg', 'palId', 'parent', 'hidden', 'trace', 'activeLayer', 'dur'] as const
 const RK = ['x', 'y', 'w', 'h', 'opacity', 'locked', 'above', 'hidden', 'name', 'parent'] as const
-const CK = ['x', 'y', 'w', 'h', 'name', 'collapsed', 'anim', 'order', 'pmode', 'loop'] as const
+const CK = ['x', 'y', 'w', 'h', 'name', 'collapsed', 'anim', 'order', 'pmode', 'loop', 'tags'] as const
 const NK = ['x', 'y', 'w', 'h', 'text', 'color', 'size'] as const
 type Snap = { f: Map<number, any>; r: Map<number, any>; c: Map<number, any>; n: Map<number, any>; z?: string[] }
 const pickKeys = (o: any, keys: readonly string[]) => { const out: any = {}; for (const k of keys) out[k] = o[k]; return out }
@@ -681,7 +682,7 @@ async function openProject(file: Blob, quiet = false) {
   let d
   try { d = await parseProject(file) } catch (e) { toast('Não consegui abrir: ' + (e as Error).message); return }
   resetDoc()
-  for (const c of d.conts) { const k = doc.addCont(c.x, c.y, c.w, c.h, c.name, c.id); Object.assign(k, { collapsed: c.collapsed, anim: c.anim, fps: c.fps, speed: c.speed, paused: c.paused, order: c.order, pmode: c.pmode, loop: c.loop }) }
+  for (const c of d.conts) { const k = doc.addCont(c.x, c.y, c.w, c.h, c.name, c.id); Object.assign(k, { collapsed: c.collapsed, anim: c.anim, fps: c.fps, speed: c.speed, paused: c.paused, order: c.order, pmode: c.pmode, loop: c.loop, tags: c.tags, tag: c.tag }) }
   for (const fr of d.frames) {
     const g = doc.addFrame(fr.x, fr.y, fr.w, fr.h, fr.id)
     Object.assign(g, { name: fr.name, dur: fr.dur, bg: fr.bg, palId: fr.palId, parent: fr.parent, hidden: fr.hidden, trace: !!fr.trace, activeLayer: fr.activeLayer ?? 1 })
@@ -1357,7 +1358,25 @@ const animFrames = (c: Cont): Frame[] => {
   const rank = new Map(c.order.map((id, i) => [id, i]))
   return fr.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9) || byPos(a, b))
 }
-function setAnimOrder(k: Cont, ids: number[] | undefined) { change([], [], [k], () => { k.order = ids }); toast(ids ? 'Ordem dos frames atualizada.' : 'Voltou a ordem pela posição na tela.') }
+// ---- tags de animação (ações): cada tag é um grupo de quadros do contêiner; a tag ativa é a que o player e as exportações usam
+const tagOf = (c: Cont) => c.tags?.find(t => t.id === c.tag)
+/** Quadros que tocam agora: a tag ativa (na ordem do contêiner) ou todos. */
+const playFrames = (c: Cont): Frame[] => { const all = animFrames(c), t = tagOf(c); if (!t) return all; const f = all.filter(x => t.ids.includes(x.id)); return f.length ? f : all }
+const effLoop = (c: Cont) => tagOf(c)?.loop ?? c.loop
+function setTag(c: Cont, id: number | undefined) { c.tag = id; touch(); invalidate() }
+function tagAdd(c: Cont, ids: number[], name?: string): Tag {
+  const t: Tag = { id: Math.max(0, ...(c.tags ?? []).map(x => x.id)) + 1, name: name ?? freeName(tr('Ação'), new Set((c.tags ?? []).map(x => x.name))), ids: [...ids] }
+  change([], [], [c], () => { c.tags = [...(c.tags ?? []), t]; c.tag = t.id }); return t
+}
+function tagEdit(c: Cont, id: number, fn: (t: Tag) => Tag) { change([], [], [c], () => { c.tags = (c.tags ?? []).map(t => (t.id === id ? fn({ ...t, ids: [...t.ids] }) : t)) }) }
+function tagDelete(c: Cont, id: number) { change([], [], [c], () => { c.tags = (c.tags ?? []).filter(t => t.id !== id); if (!c.tags.length) c.tags = undefined; if (c.tag === id) c.tag = undefined }) }
+function setLoop(c: Cont, mode: 'pingpong' | 'reverse' | undefined) { const t = tagOf(c); if (t) tagEdit(c, t.id, x => ({ ...x, loop: mode })); else change([], [], [c], () => { c.loop = mode }) }
+function setAnimOrder(k: Cont, ids: number[] | undefined) {
+  if (ids) {   // uma lista menor (ex.: só os quadros de uma tag) reocupa as posições deles dentro da ordem completa
+    const full = animFrames(k).map(f => f.id)
+    if (ids.length < full.length) { const set = new Set(ids); let j = 0; ids = full.map(id => (set.has(id) ? ids![j++] : id)) }
+  }
+  change([], [], [k], () => { k.order = ids }); toast(ids ? 'Ordem dos frames atualizada.' : 'Voltou a ordem pela posição na tela.') }
 /** Margem do contêiner e espaço entre quadros proporcionais ao tamanho dos quadros. */
 const contPad = (items: { w: number; h: number }[]) => Math.max(3, Math.min(8, Math.round(Math.max(...items.map(i => Math.max(i.w, i.h))) * 0.2)))
 const gapFor = (size: number) => Math.max(3, Math.min(8, Math.round(size * 0.25)))
@@ -1376,7 +1395,7 @@ function loopOrder(list: Frame[], mode?: 'pingpong' | 'reverse'): Frame[] {
   return list
 }
 function exportGif(c: Cont, fps: number, scaleVal: string, withBg: boolean) {
-  const list = loopOrder(animFrames(c), c.loop)
+  const list = loopOrder(playFrames(c), effLoop(c))
   if (list.length < 2) { toast('A animação precisa de ao menos 2 quadros dentro do contêiner.'); return }
   if (!animSame(list)) { toast('Todos os quadros do contêiner precisam ter o mesmo tamanho para virar GIF.'); return }
   const k = exportScale(list[0], scaleVal)
@@ -1391,12 +1410,18 @@ function exportGodot(c: Cont | null) {
   const base = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'animacao'
   const names = list.map((_, i) => String(i + 1)), sh = buildSheet(list, names, base + '.png', false)
   const frames = JSON.parse(sh.json).frames, regions = names.map(n => frames[n].frame as { x: number; y: number; w: number; h: number })
-  const tres = buildGodotTres(base + '.png', regions, delaysOf(list, fps), fps)
+  // com tags, cada uma vira uma animação do Godot (mais "default" com todos os quadros)
+  const tres = c?.tags?.length
+    ? buildGodotTresMulti(base + '.png', regions, delaysOf(list, fps), fps, [{ name: 'default', idx: list.map((_, i) => i) }, ...c.tags.map(t => {
+        const idx = list.map((f, i) => (t.ids.includes(f.id) ? i : -1)).filter(i => i >= 0), ord = t.loop === 'reverse' ? [...idx].reverse() : t.loop === 'pingpong' && idx.length > 2 ? [...idx, ...idx.slice(1, -1).reverse()] : idx
+        return { name: t.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'tag', idx: ord }
+      }).filter(a => a.idx.length)])
+    : buildGodotTres(base + '.png', regions, delaysOf(list, fps), fps)
   sh.canvas.toBlob(b => { download(b!, base + '.png'); setTimeout(() => download(new Blob([tres], { type: 'text/plain' }), base + '.tres'), 300) }, 'image/png')
   toast(`Godot: baixando ${base}.png e ${base}.tres. Coloque os dois na pasta do projeto (res://) e use o .tres em um AnimatedSprite2D.`)
 }
 async function exportAseAnim(c: Cont, fps: number) {
-  const list = animFrames(c)
+  const list = playFrames(c)
   if (list.length < 2 || !animSame(list)) { toast('Precisa de 2 ou mais quadros do mesmo tamanho dentro do contêiner.'); return }
   download(await buildAseprite(list, true, delaysOf(list, fps)), `${cname(c).replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-') || 'animacao'}-${list[0].w}x${list[0].h}.aseprite`)
   toast(`.aseprite com ${list.length} frames de animação.`)
@@ -1407,6 +1432,7 @@ function animAddFrame(c: Cont) {
   const animName = nextFrameName()
   const g = doc.addFrame(src.x + src.w + gapFor(src.w), src.y, src.w, src.h)
   if (c.order) c.order = [...c.order, g.id]
+  { const t = tagOf(c); if (t) c.tags = c.tags!.map(x => (x.id === t.id ? { ...x, ids: [...x.ids, g.id] } : x)) }   // o frame novo entra na tag ativa
   Object.assign(g, { name: animName, bg: src.bg, palId: src.palId, trace: src.trace, activeLayer: src.activeLayer, parent: c.id })
   if (src.layers) g.layers = src.layers.map(l => ({ ...l, px: l.px.slice() }))
   g.px.set(src.px); R.upload(doc, g); doc.push(addCmd([frameRec(g)])); fitContainer(c); selectFrame(g); touch()
@@ -1441,7 +1467,7 @@ function menuItems(wx: number, wy: number): MenuItem[] {
     add('Renomear', () => ui.renameSelected(), 'F2'); add('Ajustar ao conteúdo', () => fitContainer(k))
     add(k.anim ? 'Esconder o player de animação' : 'Mostrar o player de animação', () => setAnim(k, !k.anim)); add('Adicionar frame de animação', () => animAddFrame(k)); add('Exportar GIF', () => exportGif(k, k.fps ?? 8, 'auto', false)); add('Exportar para Godot', () => exportGodot(k)); sep()
     add('Trazer para frente', () => reorder(true), 'Ctrl+]'); add('Enviar para trás', () => reorder(false), 'Ctrl+['); sep()
-    add('Desagrupar', () => ungroup(k), 'Ctrl+Shift+G'); add('Excluir contêiner', deleteSelection, 'Delete')
+    add('Organizar frames e tags…', () => timeline.open(k)); add('Desagrupar', () => ungroup(k), 'Ctrl+Shift+G'); add('Excluir contêiner', deleteSelection, 'Delete')
   } else if (r) {
     add(r.locked ? 'Desbloquear' : 'Bloquear', toggleLock, 'Ctrl+Shift+L'); add(r.hidden ? 'Mostrar' : 'Ocultar', toggleHidden, 'Ctrl+Shift+H')
     add(r.above ? 'Mostrar atrás dos quadros' : 'Mostrar na frente dos quadros', () => change([], [r], [], () => { r.above = !r.above })); sep()
@@ -2010,7 +2036,7 @@ const ui = initUI({
     invalidate, touch, syncSel, selFrames, selectFrame, selectFrames, selectRef, selectCont, clearSel, selectNote, snap, commitSnap, change,
     adjustColors, invertColors, outlineAuto, colorRamp, fname, cname, flyTo, focusFrame, fitRect, fitAll, stepZoom, snapZoom, getCam: () => cam, stageSize: () => ({ w: cssW, h: cssH }),
     placeFrame, setLastPreset: (w: number, h: number) => { lastPreset = { w, h } }, deleteSelection, duplicateSelection, groupSelection, ungroup, fitContainer, reshapeFrame,
-    layerSetProp, importSheet, layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
+    openTimeline: (k: Cont) => timeline.open(k), setTag, tagAdd, layerSetProp, importSheet, layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
     openContext, uploadCount: () => R.uploadCount, frameColors, recolorFrames, recolorBegin, recolorEnd, alignFrames, distributeFrames, layersState, layerOpacityLive, layerCommit, layerMergeDown, layerReorder, importAseprite, sliceSheet, importPaletteFile, extractPalette, newAnimation, setAnimOrder, setAnim, exportGodot, importProjectFile, newWorkspace: () => void createWorkspace(), goHome, renameWs, exportPng, exportAs, animFrames, exportGif, exportAseAnim, animAddFrame, animSame, saveProject, openProject, copyPng, exportScale, removeNote, NOTE_COLORS, setTool, setColor, toast, paletteById, paletteOf, boundsOf, spawn, runBench, perfInfo, w2s, hit: () => labelRects
   }
 })
@@ -2085,7 +2111,10 @@ async function importProjectFile(f: File) {
   const now = Date.now(), id = W.newId()
   await W.putWs({ id, name: f.name.replace(/\.[^.]+$/, ''), created: now, updated: now, frames: 0 }, f); location.hash = '#/w/' + id
 }
-const players = initPlayers({ doc, stage: $('stage'), animFrames, cname, w2s, stageSize: () => ({ w: cssW, h: cssH }), zoom: () => cam.zoom, uploads: () => R.uploadCount, touch, hex2rgba, reorder: setAnimOrder, pick: f => selectFrame(f), setDur: (f, ms) => change([f], [], [], () => { f.dur = ms }) })
+const players = initPlayers({ doc, stage: $('stage'), animFrames: playFrames, effLoop, tagOf, setTag, setLoop, openTimeline: (k: Cont) => timeline.open(k), cname, w2s, stageSize: () => ({ w: cssW, h: cssH }), zoom: () => cam.zoom, uploads: () => R.uploadCount, touch, hex2rgba, reorder: setAnimOrder, pick: f => selectFrame(f), setDur: (f, ms) => change([f], [], [], () => { f.dur = ms }) })
+const timeline = initTimeline({
+  doc, cname, animFrames, tagOf, setTag, tagAdd, tagEdit, tagDelete, setLoop, effLoop, reorder: setAnimOrder, pick: (f: Frame) => selectFrame(f), uploads: () => R.uploadCount, undo: () => { doc.undo(); invalidate() }, redo: () => { doc.redo(); invalidate() }, toast,
+})
 const home = initHome({
   list: W.listWs, open: id => { location.hash = '#/w/' + id }, create: () => void createWorkspace(),
   rename: async (id, name) => { const m = await W.getMeta(id); if (m) { await W.putMeta({ ...m, name }); await home.refresh() } },
