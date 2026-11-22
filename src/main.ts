@@ -610,7 +610,7 @@ const paletteById = (id: string | undefined): string[] => (id === 'mine' ? S.min
 const paletteOf = (f: Frame | null) => paletteById(f?.palId ?? S.defaultPal)
 
 // ================================================================ entrada (mouse, toque e caneta)
-type Mode = 'none' | 'shape' | 'pxsel' | 'pxmove' | 'notemove' | 'framedrag' | 'contdrag' | 'marquee' | 'pending' | 'tap' | 'stroke' | 'pan' | 'drag' | 'dragcont' | 'refmove' | 'resize' | 'gesture' | 'ignore'
+type Mode = 'none' | 'shape' | 'pxsel' | 'pxmove' | 'pxscale' | 'notemove' | 'framedrag' | 'contdrag' | 'marquee' | 'pending' | 'tap' | 'stroke' | 'pan' | 'drag' | 'dragcont' | 'refmove' | 'resize' | 'gesture' | 'ignore'
 let mode: Mode = 'none'
 const ptrs = new Map<number, { x: number; y: number }>()
 let start = { sx: 0, sy: 0, cx: 0, cy: 0, wx: 0, wy: 0 }
@@ -992,6 +992,7 @@ const clampPx = (f: Frame, p: { x: number; y: number }) => ({ x: Math.max(0, Mat
 // ---------------------------------------------------------------- seleção de pixels (retângulo, mover, copiar, colar)
 type PSel = { f: Frame; x: number; y: number; w: number; h: number }
 let psel: PSel | null = null
+{ const u = doc.undo.bind(doc), r = doc.redo.bind(doc); doc.undo = () => { psel = null; return u() }; doc.redo = () => { psel = null; return r() } }   // a seleção não sobrevive a desfazer/refazer (o tamanho dela ficaria desatualizado)
 let pxDrag: { x0: number; y0: number; moved: boolean } | null = null
 let pxMove: { float: Uint8Array; base: Uint8Array; ox: number; oy: number; sx: number; sy: number; moved: boolean } | null = null
 const inPsel = (p: PSel, x: number, y: number) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h
@@ -1022,6 +1023,108 @@ function pxPaste() {
   s.minx = Math.max(0, nx); s.miny = Math.max(0, ny); s.maxx = Math.min(f.w - 1, nx + pxClip.w - 1); s.maxy = Math.min(f.h - 1, ny + pxClip.h - 1)
   stroke = s; commitStroke(); edited(s); psel = { f, x: nx, y: ny, w: Math.min(pxClip.w, f.w - nx), h: Math.min(pxClip.h, f.h - ny) }; selectFrame(f)
   toast('Pixels colados. Arraste a seleção para posicionar.')
+}
+
+// ---- transformar a seleção de pixels: esticar pelas alças, girar, espelhar, mover com as setas
+type PxHandle = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
+let pxScale: { dir: PxHandle; float: Uint8Array; base: Uint8Array; sw: number; sh: number; L: number; T: number; R: number; B: number; changed: boolean } | null = null
+const pxLive = () => (psel && doc.frames.get(psel.f.id) === psel.f ? psel : null)
+/** Alças da seleção em coordenadas de tela. */
+function pxHandles(p: PSel): { dir: PxHandle; x: number; y: number }[] {
+  const a = rectPx({ x: p.f.x + p.x, y: p.f.y + p.y, w: p.w, h: p.h }), mx = a.x + a.w / 2, my = a.y + a.h / 2, r = a.x + a.w, b = a.y + a.h
+  return [{ dir: 'nw', x: a.x, y: a.y }, { dir: 'n', x: mx, y: a.y }, { dir: 'ne', x: r, y: a.y }, { dir: 'e', x: r, y: my }, { dir: 'se', x: r, y: b }, { dir: 's', x: mx, y: b }, { dir: 'sw', x: a.x, y: b }, { dir: 'w', x: a.x, y: my }]
+}
+function pxHandleAt(sx: number, sy: number, rad = 8): PxHandle | null {
+  const p = pxLive(); if (!p || S.tool !== 'marquee') return null
+  const a = rectPx({ x: p.f.x + p.x, y: p.f.y + p.y, w: p.w, h: p.h })
+  if (a.w < 6 || a.h < 6) { if (a.w < 3 && a.h < 3) return null }
+  let best: PxHandle | null = null, bd = rad
+  for (const h of pxHandles(p)) { const d = Math.hypot(h.x - sx, h.y - sy); if (d <= bd) { bd = d; best = h.dir } }
+  return best
+}
+/** Reamostra por vizinho mais próximo (mantém os pixels nítidos). fx e fy invertem. */
+function pxResample(src: Uint8Array, sw: number, sh: number, dw: number, dh: number, fx = false, fy = false) {
+  const out = new Uint8Array(dw * dh * 4)
+  for (let j = 0; j < dh; j++) {
+    let v = Math.min(sh - 1, Math.floor(((j + 0.5) * sh) / dh)); if (fy) v = sh - 1 - v
+    for (let i = 0; i < dw; i++) {
+      let u = Math.min(sw - 1, Math.floor(((i + 0.5) * sw) / dw)); if (fx) u = sw - 1 - u
+      out.set(src.subarray((v * sw + u) * 4, (v * sw + u) * 4 + 4), (j * dw + i) * 4)
+    }
+  }
+  return out
+}
+/** Tira a seleção de onde está e coloca `data` (nw × nh) na nova posição, num único passo de desfazer. */
+function pxReplace(p: PSel, data: Uint8Array, nx: number, ny: number, nw: number, nh: number): boolean {
+  const s = newStroke(p.f, false); if (!s) return false
+  const f = p.f
+  for (let j = 0; j < p.h; j++) s.buf.fill(0, ((p.y + j) * f.w + p.x) * 4, ((p.y + j) * f.w + p.x + p.w) * 4)
+  pxPut(s.buf, f, data, nw, nh, nx, ny)
+  s.minx = Math.max(0, Math.min(p.x, nx)); s.miny = Math.max(0, Math.min(p.y, ny)); s.maxx = Math.min(f.w - 1, Math.max(p.x + p.w - 1, nx + nw - 1)); s.maxy = Math.min(f.h - 1, Math.max(p.y + p.h - 1, ny + nh - 1))
+  stroke = s; commitStroke(); edited(s)
+  psel = { f, x: nx, y: ny, w: nw, h: nh }
+  return true
+}
+function pxFlip(axis: 'h' | 'v') {
+  const p = pxLive(); if (!p) return
+  const src = pxRegion(doc.activeBuf(p.f), p.f, p)
+  pxReplace(p, pxResample(src, p.w, p.h, p.w, p.h, axis === 'h', axis === 'v'), p.x, p.y, p.w, p.h)
+}
+function pxRotate(dir: 1 | -1 | 2) {
+  const p = pxLive(); if (!p) return
+  const src = pxRegion(doc.activeBuf(p.f), p.f, p), w = p.w, h = p.h
+  if (dir === 2) { pxReplace(p, pxResample(src, w, h, w, h, true, true), p.x, p.y, w, h); return }
+  const nw = h, nh = w
+  if (nw > p.f.w || nh > p.f.h) { toast('O quadro é pequeno demais para girar essa seleção.'); return }
+  const out = new Uint8Array(nw * nh * 4)
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const x = dir === 1 ? h - 1 - j : j, y = dir === 1 ? i : w - 1 - i   // dir 1: horário, -1: anti-horário
+    out.set(src.subarray((j * w + i) * 4, (j * w + i) * 4 + 4), (y * nw + x) * 4)
+  }
+  const cx = p.x + w / 2, cy = p.y + h / 2
+  const nx = Math.max(0, Math.min(p.f.w - nw, Math.round(cx - nw / 2))), ny = Math.max(0, Math.min(p.f.h - nh, Math.round(cy - nh / 2)))
+  pxReplace(p, out, nx, ny, nw, nh)
+}
+function pxNudge(dx: number, dy: number) {
+  const p = pxLive(); if (!p) return
+  const nx = Math.max(-(p.w - 1), Math.min(p.f.w - 1, p.x + dx)), ny = Math.max(-(p.h - 1), Math.min(p.f.h - 1, p.y + dy))
+  if (nx === p.x && ny === p.y) return
+  const src = pxRegion(doc.activeBuf(p.f), p.f, p)
+  // a seleção continua inteira dentro do quadro: fica encostada na borda
+  const cx = Math.max(0, Math.min(p.f.w - p.w, nx)), cy = Math.max(0, Math.min(p.f.h - p.h, ny))
+  if (cx === p.x && cy === p.y) return
+  pxReplace(p, src, cx, cy, p.w, p.h)
+}
+function pxSelectAll() {
+  const f = psel?.f ?? targetFrame(); if (!f) { toast('Selecione um quadro primeiro.'); return }
+  selectFrame(f); psel = { f, x: 0, y: 0, w: f.w, h: f.h }; if (S.tool !== 'marquee') setTool('marquee'); psel = { f, x: 0, y: 0, w: f.w, h: f.h }; invalidate()
+}
+/** Esticar: puxa uma alça; Shift mantém a proporção; passar da borda oposta espelha. */
+function pxScaleMove(wx: number, wy: number, keep: boolean) {
+  const sc = pxScale, p = pxLive(), s2 = stroke; if (!sc || !p || !s2) return
+  const f = p.f, lx = Math.max(0, Math.min(f.w, Math.round(wx - f.x))), ly = Math.max(0, Math.min(f.h, Math.round(wy - f.y)))
+  let { L, T, R, B } = sc
+  if (sc.dir.includes('w')) L = lx; if (sc.dir.includes('e')) R = lx
+  if (sc.dir.includes('n')) T = ly; if (sc.dir.includes('s')) B = ly
+  if (keep && sc.dir.length === 2) {   // canto com proporção travada
+    const fixX = sc.dir.includes('w') ? sc.R : sc.L, fixY = sc.dir.includes('n') ? sc.B : sc.T
+    const dw = Math.max(1, Math.abs((sc.dir.includes('w') ? L : R) - fixX)), dh = Math.max(1, Math.abs((sc.dir.includes('n') ? T : B) - fixY))
+    const k = Math.max(dw / sc.sw, dh / sc.sh), tw = Math.max(1, Math.round(sc.sw * k)), th = Math.max(1, Math.round(sc.sh * k))
+    const sx = (sc.dir.includes('w') ? L : R) >= fixX ? 1 : -1, sy = (sc.dir.includes('n') ? T : B) >= fixY ? 1 : -1
+    const ex = Math.max(0, Math.min(f.w, fixX + sx * tw)), ey = Math.max(0, Math.min(f.h, fixY + sy * th))
+    if (sc.dir.includes('w')) L = ex; else R = ex
+    if (sc.dir.includes('n')) T = ey; else B = ey
+  }
+  const flipX = R < L, flipY = B < T
+  let x0 = Math.min(L, R), x1 = Math.max(L, R), y0 = Math.min(T, B), y1 = Math.max(T, B)
+  if (x1 === x0) { if (x1 < f.w) x1++; else x0-- }
+  if (y1 === y0) { if (y1 < f.h) y1++; else y0-- }
+  const nw = x1 - x0, nh = y1 - y0
+  s2.buf.set(sc.base)
+  pxPut(s2.buf, f, pxResample(sc.float, sc.sw, sc.sh, nw, nh, flipX, flipY), nw, nh, x0, y0)
+  s2.minx = Math.min(s2.minx, x0); s2.miny = Math.min(s2.miny, y0); s2.maxx = Math.max(s2.maxx, x1 - 1); s2.maxy = Math.max(s2.maxy, y1 - 1)
+  if (nw !== p.w || nh !== p.h || x0 !== p.x || y0 !== p.y) sc.changed = true
+  p.x = x0; p.y = y0; p.w = nw; p.h = nh; edited(s2)
 }
 
 // ---------------------------------------------------------------- animação (um contêiner vira uma sequência, da esquerda para a direita)
@@ -1090,6 +1193,12 @@ function menuItems(wx: number, wy: number): MenuItem[] {
   const fr = selFrames(), n = fr.length, r = S.selRef, k = S.selCont, note = S.selNote, it: MenuItem[] = []
   const sep = () => { if (it.length && !it[it.length - 1].sep) it.push({ sep: true, label: '' }) }
   const add = (label: string, fn: () => void, key?: string, disabled = false) => it.push({ label, fn, key, disabled })
+  if (S.tool === 'marquee' && pxLive()) {
+    add('Copiar pixels', () => pxCopy(false), 'Ctrl+C'); add('Recortar pixels', () => pxCopy(true), 'Ctrl+X'); add('Colar pixels', () => pxPaste(), 'Ctrl+V', !pxClip); add('Apagar pixels', pxClear, 'Delete'); sep()
+    add('Espelhar na horizontal', () => pxFlip('h'), 'Shift+H'); add('Espelhar na vertical', () => pxFlip('v'), 'Shift+V'); add('Girar 90° para a direita', () => pxRotate(1), 'Shift+R'); add('Girar 90° para a esquerda', () => pxRotate(-1)); add('Girar 180°', () => pxRotate(2)); sep()
+    add('Selecionar tudo', pxSelectAll, 'Ctrl+A'); add('Desmarcar', () => { psel = null; invalidate() }, 'Ctrl+D')
+    return it
+  }
   if (n) {
     add('Copiar', () => copyFrames(), 'Ctrl+C'); add('Colar aqui', () => pasteFrames({ x: Math.round(wx), y: Math.round(wy) }), 'Ctrl+V', !frameClip)
     add('Duplicar', duplicateSelection, 'Ctrl+D'); sep()
@@ -1141,7 +1250,7 @@ ov.addEventListener('pointerdown', e => {
   if (ptrs.size === 2) {
     if (mode === 'pending' || mode === 'tap') cancelPending()
     if (mode === 'stroke' || mode === 'shape') commitStroke()
-    shape = null; pxDrag = null; pxMove = null; fdrag = null; mq = null; rs = null; mode = 'gesture'
+    shape = null; pxDrag = null; pxMove = null; pxScale = null; fdrag = null; mq = null; rs = null; mode = 'gesture'
     const [a, b] = [...ptrs.values()]
     gest = { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, t0: performance.now(), moved: 0 }
     return
@@ -1193,11 +1302,19 @@ ov.addEventListener('pointerdown', e => {
     case 'marquee':
       if (f) {
         const p = localPx(f, w.x, w.y)
-        if (psel && psel.f === f && inPsel(psel, p.x, p.y)) {
+        const ph = pxHandleAt(sx, sy, e.pointerType === 'touch' ? 16 : 8)
+        if (ph && psel) {   // alça: esticar
           const s2 = newStroke(f, false)
           if (!s2) { mode = 'ignore'; break }
           const float = pxRegion(s2.buf, f, psel), base = s2.before.slice()
           for (let j = 0; j < psel.h; j++) base.fill(0, ((psel.y + j) * f.w + psel.x) * 4, ((psel.y + j) * f.w + psel.x + psel.w) * 4)
+          s2.minx = psel.x; s2.miny = psel.y; s2.maxx = psel.x + psel.w - 1; s2.maxy = psel.y + psel.h - 1
+          stroke = s2; pxScale = { dir: ph, float, base, sw: psel.w, sh: psel.h, L: psel.x, T: psel.y, R: psel.x + psel.w, B: psel.y + psel.h, changed: false }; mode = 'pxscale'
+        } else if (psel && psel.f === f && inPsel(psel, p.x, p.y)) {
+          const s2 = newStroke(f, false)
+          if (!s2) { mode = 'ignore'; break }
+          const float = pxRegion(s2.buf, f, psel), base = s2.before.slice()
+          if (!e.altKey) for (let j = 0; j < psel.h; j++) base.fill(0, ((psel.y + j) * f.w + psel.x) * 4, ((psel.y + j) * f.w + psel.x + psel.w) * 4)   // Alt: arrasta uma cópia
           s2.minx = psel.x; s2.miny = psel.y; s2.maxx = psel.x + psel.w - 1; s2.maxy = psel.y + psel.h - 1
           stroke = s2; pxMove = { float, base, ox: psel.x, oy: psel.y, sx: p.x, sy: p.y, moved: false }; mode = 'pxmove'
         } else { selectFrame(f); const c = clampPx(f, p); pxDrag = { x0: c.x, y0: c.y, moved: false }; psel = { f, x: c.x, y: c.y, w: 1, h: 1 }; mode = 'pxsel' }
@@ -1240,7 +1357,8 @@ ov.addEventListener('pointermove', e => {
   if (!ptrs.has(e.pointerId) || ptrs.size !== 1) { // sem botão: só o cursor
     if (e.pointerType !== 'touch' && !S.spaceDown && S.tool !== 'hand') {
       const tools = S.tool !== 'frame' && S.tool !== 'container' && S.tool !== 'anim', hd = tools ? handleHit(sx, sy) : null
-      ov.style.cursor = hd ? CURSORS[hd.dir] : tools && labelHit(sx, sy) ? 'pointer' : ui.toolCursor(S.tool)
+      const ph = pxHandleAt(sx, sy)
+      ov.style.cursor = ph ? CURSORS[ph] : hd ? CURSORS[hd.dir] : tools && labelHit(sx, sy) ? 'pointer' : ui.toolCursor(S.tool)
     }
     invalidate(); return
   }
@@ -1253,6 +1371,7 @@ ov.addEventListener('pointermove', e => {
       const c = clampPx(psel.f, localPx(psel.f, w.x, w.y)); pxDrag.moved = true
       psel.x = Math.min(pxDrag.x0, c.x); psel.y = Math.min(pxDrag.y0, c.y); psel.w = Math.abs(c.x - pxDrag.x0) + 1; psel.h = Math.abs(c.y - pxDrag.y0) + 1
     } break
+    case 'pxscale': pxScaleMove(w.x, w.y, e.shiftKey); break
     case 'pxmove': if (pxMove && stroke && psel) {
       const l = localPx(psel.f, w.x, w.y), nx = pxMove.ox + (l.x - pxMove.sx), ny = pxMove.oy + (l.y - pxMove.sy), s2 = stroke, f = psel.f
       if (nx !== psel.x || ny !== psel.y) pxMove.moved = true
@@ -1324,6 +1443,7 @@ const up = (e: PointerEvent) => {
   else if (mode === 'shape') { commitStroke(); shape = null }
   else if (mode === 'pxsel') { if (pxDrag && !pxDrag.moved) psel = null; pxDrag = null }
   else if (mode === 'pxmove') { if (pxMove?.moved) commitStroke(); else stroke = null; pxMove = null }
+  else if (mode === 'pxscale') { if (pxScale?.changed) commitStroke(); else stroke = null; pxScale = null }
   else if (mode === 'drag' || mode === 'dragcont' || mode === 'refmove') finishDrag()
   mode = ptrs.size ? 'ignore' : 'none'
   invalidate(); ui.syncZoom(); ui.panels(true)
@@ -1350,7 +1470,7 @@ function armLongPress(sx: number, sy: number, cx: number, cy: number) {
   lpTimer = window.setTimeout(() => {
     if (ptrs.size !== 1) return
     const cur = [...ptrs.values()][0]; if (Math.hypot(cur.x - lpStart.sx, cur.y - lpStart.sy) > 8) return
-    if (['stroke', 'shape', 'pending', 'tap', 'pxmove', 'pxsel', 'framedrag', 'contdrag', 'resize', 'gesture', 'marquee'].includes(mode)) return
+    if (['stroke', 'shape', 'pending', 'tap', 'pxmove', 'pxscale', 'pxsel', 'framedrag', 'contdrag', 'resize', 'gesture', 'marquee'].includes(mode)) return
     mode = 'ignore'; noteDrag = null; refDrag = null; contDrag = null; dragSnap = null; dragStart = []
     contextAt(lpStart.cx, lpStart.cy, true)
   }, 550)
@@ -1392,6 +1512,14 @@ window.addEventListener('keydown', e => {
   if (mod && k === 'o') { e.preventDefault(); $<HTMLInputElement>('projfile').click(); return }
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? doc.redo() : doc.undo(); invalidate(); return }
   if (mod && k === 'y') { e.preventDefault(); doc.redo(); invalidate(); return }
+  if (S.tool === 'marquee' && pxLive()) {
+    if (mod && k === 'd') { e.preventDefault(); psel = null; invalidate(); return }
+    if (!mod && e.shiftKey && k === 'h') { e.preventDefault(); pxFlip('h'); return }
+    if (!mod && e.shiftKey && k === 'v') { e.preventDefault(); pxFlip('v'); return }
+    if (!mod && e.shiftKey && k === 'r') { e.preventDefault(); pxRotate(1); return }
+    if (e.key.startsWith('Arrow')) { e.preventDefault(); const n = e.shiftKey ? 8 : 1; pxNudge(e.key === 'ArrowLeft' ? -n : e.key === 'ArrowRight' ? n : 0, e.key === 'ArrowUp' ? -n : e.key === 'ArrowDown' ? n : 0); return }
+  }
+  if (mod && k === 'a' && S.tool === 'marquee') { e.preventDefault(); pxSelectAll(); return }
   if (mod && k === 'd') { e.preventDefault(); duplicateSelection(); return }
   if (mod && k === 'a') { e.preventDefault(); selectFrames([...doc.frames.values()].filter(f => !f.hidden)); return }
   if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) { syncSel(); if (S.selCont) ungroup(S.selCont) } else groupSelection(); return }
@@ -1540,6 +1668,7 @@ function drawOverlay() {
     const a = rectPx({ x: psel.f.x + psel.x, y: psel.f.y + psel.y, w: psel.w, h: psel.h })
     octx.lineWidth = 1; octx.setLineDash([5, 4]); octx.strokeStyle = '#000'; octx.strokeRect(a.x + 0.5, a.y + 0.5, a.w, a.h); octx.lineDashOffset = 4.5; octx.strokeStyle = '#fff'; octx.strokeRect(a.x + 0.5, a.y + 0.5, a.w, a.h); octx.setLineDash([]); octx.lineDashOffset = 0
     label(`${psel.w} × ${psel.h}`, a.x, a.y + a.h + 24, ACC_INK, ACC)
+    if (S.tool === 'marquee') for (const h of pxHandles(psel)) { octx.fillStyle = '#fff'; octx.strokeStyle = '#000'; octx.lineWidth = 1; octx.fillRect(Math.round(h.x) - 4, Math.round(h.y) - 4, 8, 8); octx.strokeRect(Math.round(h.x) - 3.5, Math.round(h.y) - 3.5, 7, 7) }
   }
   for (const n of doc.notes) drawNote(n)
   if (S.hover && hf && ['pencil', 'eraser', 'line', 'rect', 'ellipse'].includes(S.tool) && !S.spaceDown) {
@@ -1725,7 +1854,7 @@ function makeStarter() {
 makeStarter()
 setTool('pencil'); ui.init(); initI18n()
 cam = { x: 0, y: 0, zoom: Math.max(1, Math.floor(Math.min(cssW, cssH) / 24)) }
-;(window as any).__app = { R, doc, get cam() { return cam }, spawn, fitAll, newFrame, setTool, demoImage, selSet, S, ui, createContainer, groupSelection, reshapeFrame, layerAdd, selectFrame, selectFrames, selectRef, selectNote, selectCont, loadImage, addImage, runBench }
+;(window as any).__app = { get psel() { return psel }, R, doc, get cam() { return cam }, spawn, fitAll, newFrame, setTool, demoImage, selSet, S, ui, createContainer, groupSelection, reshapeFrame, layerAdd, selectFrame, selectFrames, selectRef, selectNote, selectCont, loadImage, addImage, runBench }
 ;(window as any).__runBench = runBench
 requestAnimationFrame(tick)
 {
