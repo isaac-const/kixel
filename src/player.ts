@@ -48,6 +48,7 @@ export function initPlayers(c: PlayerCtx) {
       <div class="aspd adur"><span class="dl">Duração do frame</span><label class="dv" title="Quanto tempo este frame fica na tela. Vazio usa o FPS."><input type="number" min="10" step="5" aria-label="Duração do frame em milissegundos" /><i>ms</i></label></div>`
     layer.append(el)
     const q = (s: string) => el.querySelector(s) as HTMLElement
+    q('.ahead b').translate = false
     const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.sv input') as HTMLInputElement, durIn: q('.dv input') as HTMLInputElement, durLbl: q('.dl'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '', vh: 0 }
     const step = (d: number) => { const k2 = cont(k.id); if (!k2) return; const n = c.animFrames(k2).length; if (!n) return; k2.paused = true; p.idx = (p.idx + d + n) % n; p.t = performance.now(); p.key = ''; c.touch() }
     q('.prev').onclick = () => step(-1); q('.next').onclick = () => step(1)
@@ -77,7 +78,7 @@ export function initPlayers(c: PlayerCtx) {
   function buildFilm(p: P, k: Cont, list: Frame[]) {
     p.film.replaceChildren()
     list.forEach((f, i) => {
-      const th = document.createElement('div'); th.className = 'th'; th.draggable = true; th.dataset.id = String(f.id); th.title = `${i + 1}. ${f.name ?? 'Quadro'}`
+      const th = document.createElement('div'); th.className = 'th'; th.draggable = true; th.dataset.id = String(f.id); th.translate = false; th.title = `${i + 1}. ${f.name ?? ''}`
       th.innerHTML = `<canvas width="${f.w}" height="${f.h}"></canvas><i>${i + 1}</i>`
       th.onclick = () => { const k2 = cont(k.id); if (!k2) return; k2.paused = true; p.idx = i; p.t = performance.now(); p.key = ''; c.pick(f); c.touch() }
       th.ondragstart = e => { p.dragId = f.id; e.dataTransfer?.setData('text/plain', String(f.id)); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move' }

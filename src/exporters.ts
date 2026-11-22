@@ -1,5 +1,6 @@
 // Formatos de saída: .aseprite, SVG, sprite sheet + JSON, paleta .gpl e projeto Kixel (.kixel).
 import type { Doc, Frame } from './doc'
+import { tr } from './i18n'
 
 const enc = new TextEncoder()
 
@@ -23,13 +24,13 @@ class W {
 }
 
 type L = { name: string; vis: boolean; px: Uint8Array; op?: number }
-const layersOf = (f: Frame): L[] => (f.layers ? f.layers.map(l => ({ name: l.name, vis: l.vis, px: l.px, op: l.op })) : [{ name: 'Camada 1', vis: true, px: f.px }])
+const layersOf = (f: Frame): L[] => (f.layers ? f.layers.map(l => ({ name: l.name, vis: l.vis, px: l.px, op: l.op })) : [{ name: tr('Camada') + ' 1', vis: true, px: f.px }])
 
 /** Gera um arquivo .aseprite (v1.3, RGBA). Com `animation`, cada quadro vira um frame de tempo (todos com o mesmo tamanho). */
 export async function buildAseprite(frames: Frame[], animation: boolean, durationMs: number | number[] = 100): Promise<Blob> {
   const dur = (i: number) => Math.round(Array.isArray(durationMs) ? (durationMs[i] ?? 100) : durationMs)
   const first = frames[0], w = first.w, h = first.h
-  const sets: L[][] = animation ? frames.map(f => [{ name: 'Camada 1', vis: true, px: f.px }]) : [layersOf(first)]
+  const sets: L[][] = animation ? frames.map(f => [{ name: tr('Camada') + ' 1', vis: true, px: f.px }]) : [layersOf(first)]
   const w0 = new W()
   w0.u32(0); w0.u16(0xa5e0); w0.u16(sets.length); w0.u16(w); w0.u16(h); w0.u16(32); w0.u32(1); w0.u16(dur(0))
   w0.u32(0); w0.u32(0); w0.u8(0); w0.zero(3); w0.u16(0); w0.u8(1); w0.u8(1); w0.i16(0); w0.i16(0); w0.u16(0); w0.u16(0); w0.zero(84)

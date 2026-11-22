@@ -1,4 +1,5 @@
 import { hydrateIcons, icon } from './icons'
+import { LANGS, getLang, setLang, locale, tr } from './i18n'
 import { openPicker, closePicker } from './picker'
 import { PALETTES, PRESETS } from './data'
 import type { Frame, Ref, Cont } from './doc'
@@ -42,7 +43,7 @@ export function initUI(c: any): UI {
 
   // ------------------------------------------------------------ ferramentas
   const tb = $('tools')
-  for (const [id, , key, title] of TOOLS) { if (id === '-') { const sp = document.createElement('span'); sp.className = 'tsep'; tb.appendChild(sp); continue } const b = document.createElement('button'); b.dataset.tool = id; b.innerHTML = icon(id) + `<kbd>${key}</kbd>`; b.title = `${title} (${key})`; b.setAttribute('aria-label', title); b.onclick = () => core.setTool(id); tb.appendChild(b) }
+  for (const [id, , key, title] of TOOLS) { if (id === '-') { const sp = document.createElement('span'); sp.className = 'tsep'; tb.appendChild(sp); continue } const b = document.createElement('button'); b.dataset.tool = id; b.innerHTML = icon(id) + `<kbd translate="no">${key}</kbd>`; b.title = `${title} (${key})`; b.setAttribute('aria-label', title); b.onclick = () => core.setTool(id); tb.appendChild(b) }
   const toolCursor = (t: string) => (t === 'hand' ? 'grab' : ['pencil', 'eraser', 'fill', 'picker', 'frame', 'container', 'anim', 'note', 'line', 'rect', 'ellipse', 'marquee'].includes(t) ? 'crosshair' : 'default')
   function toolChanged(t: string) {
     show('fillrow', t === 'rect' || t === 'ellipse'); show('onionrow', DRAW.includes(t))
@@ -67,7 +68,7 @@ export function initUI(c: any): UI {
     const key = `${id}|${colors.join(',')}|${S.mine.length}`
     if (key === palKey) return
     palKey = key
-    palsel.replaceChildren(); for (const p of PALETTES) palsel.add(new Option(`${p.name} · ${p.colors.length}`, p.id)); palsel.add(new Option(`Minha paleta · ${S.mine.length}`, 'mine')); palsel.value = id
+    palsel.replaceChildren(); for (const p of PALETTES) { const o = new Option(`${p.name} · ${p.colors.length}`, p.id); o.translate = false; palsel.add(o) }; palsel.add(new Option(`Minha paleta · ${S.mine.length}`, 'mine')); palsel.value = id
     const info = PALETTES.find(p => p.id === id)
     $('palnote').textContent = (id === 'mine' ? 'Use + para guardar a cor atual. Shift + clique numa cor a remove. ' : info ? info.note + '. ' : '') + 'A paleta vale só para o quadro selecionado. Quadros novos herdam a do último quadro usado.'
     palsel.title = $('palnote').textContent || ''
@@ -260,13 +261,13 @@ export function initUI(c: any): UI {
   function toggleHelp() {
     if (helpEl) { helpEl.remove(); helpEl = null; return }
     const w = document.createElement('div'); w.id = 'helpwin'
-    w.innerHTML = `<div class="card" role="dialog" aria-label="Atalhos de teclado"><h3>Atalhos de teclado</h3><p class="s">Aperte ? ou Esc para fechar. Em celular, use os botões e os gestos: 2 dedos movem e dão zoom, toque rápido com 2 dedos desfaz.</p><div class="cols">${HELP.map(([t, rows]) => `<div><h5>${t}</h5>${rows.map(([a, k]) => `<div class="k"><span>${a}</span><kbd>${k}</kbd></div>`).join('')}</div>`).join('')}</div></div>`
+    w.innerHTML = `<div class="card" role="dialog" aria-label="Atalhos de teclado"><h3>Atalhos de teclado</h3><p class="s">Aperte ? ou Esc para fechar. Em celular, use os botões e os gestos: 2 dedos movem e dão zoom, toque rápido com 2 dedos desfaz.</p><div class="cols">${HELP.map(([t, rows]) => `<div><h5>${t}</h5>${rows.map(([a, k]) => `<div class="k"><span>${a}</span><kbd translate="no">${k}</kbd></div>`).join('')}</div>`).join('')}</div></div>`
     w.onclick = e => { if (e.target === w) toggleHelp() }
     document.body.append(w); helpEl = w
   }
   window.addEventListener('keydown', e => { if (e.key === 'Escape' && helpEl) toggleHelp() }, true)
   { const b = document.createElement('button'); b.className = 'help'; b.innerHTML = icon('keyboard'); b.title = 'Atalhos de teclado (?)'; b.setAttribute('aria-label', 'Atalhos de teclado'); b.onclick = toggleHelp; $('zoombox').append(b) }
-  const saved = (d: Date) => { $('savestat').textContent = 'salvo às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }
+  const saved = (d: Date) => { $('savestat').textContent = 'salvo às ' + d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }) }
 
   // ------------------------------------------------------------ alinhar, importar, fatiar
   for (const b of document.querySelectorAll<HTMLButtonElement>('[data-al]')) b.onclick = () => core.alignFrames(b.dataset.al)
@@ -299,7 +300,7 @@ export function initUI(c: any): UI {
       const cp = document.createElement('button'); cp.className = 'swbtn'; cp.style.background = hex6(cur); cp.setAttribute('aria-label', 'Cor'); cp.title = 'Abrir o seletor de cor'
       const hx = document.createElement('input'); hx.className = 'hx'; hx.value = hex6(cur).slice(1); hx.maxLength = 7; hx.spellcheck = false; hx.setAttribute('aria-label', 'Hex')
       const al = document.createElement('input'); al.className = 'al'; al.type = 'number'; al.min = '0'; al.max = '100'; al.value = String(Math.round(((cur & 255) / 255) * 100)); al.setAttribute('aria-label', 'Opacidade em %')
-      const n = document.createElement('small'); n.textContent = row.n.toLocaleString('pt-BR') + ' px'; n.title = 'Quantidade de pixels com esta cor'
+      const n = document.createElement('small'); n.textContent = row.n.toLocaleString(locale()) + ' px'; n.title = 'Quantidade de pixels com esta cor'
       const apply = (to: number, live: boolean) => {
         if (to === cur) return
         if (!selToken) selToken = core.recolorBegin(frames)
@@ -331,7 +332,8 @@ export function initUI(c: any): UI {
       { label: 'Importar .aseprite…', fn: () => val('asefile').click() }, { sep: true, label: '' },
       { label: 'Desfazer', key: 'Ctrl+Z', fn: () => { doc.undo(); core.invalidate() } }, { label: 'Refazer', key: 'Ctrl+Shift+Z', fn: () => { doc.redo(); core.invalidate() } },
       { label: 'Selecionar tudo', key: 'Ctrl+A', fn: () => core.selectFrames([...doc.frames.values()].filter((f: Frame) => !f.hidden)) }, { label: 'Ver tudo', key: 'Shift+1', fn: () => core.fitAll() }, { sep: true, label: '' },
-      { label: 'Atalhos de teclado', key: '?', fn: () => toggleHelp() }
+      { label: 'Atalhos de teclado', key: '?', fn: () => toggleHelp() }, { sep: true, label: '' },
+      { label: 'Idioma', disabled: true }, ...LANGS.map(l => ({ label: (getLang() === l.id ? '✓  ' : '     ') + l.name, fn: () => setLang(l.id) }))
     ], $('homebtn'))
   }
   val('wsname').onchange = () => core.renameWs(val('wsname').value)
@@ -347,7 +349,7 @@ export function initUI(c: any): UI {
     for (const it of items) {
       if (it.sep) { m.append(document.createElement('hr')); continue }
       const b = document.createElement('button'); b.disabled = !!it.disabled; b.setAttribute('role', 'menuitem')
-      b.innerHTML = `<span>${it.label}</span>${it.key ? `<kbd>${it.key}</kbd>` : ''}`
+      b.innerHTML = `<span>${it.label}</span>${it.key ? `<kbd translate="no">${it.key}</kbd>` : ''}`
       b.onclick = () => { closeMenu(); it.fn?.() }
       m.append(b)
     }
@@ -469,7 +471,7 @@ export function initUI(c: any): UI {
         extra = String(doc.members(id).frames.length)
       }
       if (on) el.classList.add('on'); if (off) el.classList.add('off')
-      const t = document.createElement('span'); t.className = 't'; t.textContent = nameOf(kind, id); el.append(t)
+      const t = document.createElement('span'); t.className = 't'; t.translate = false; t.textContent = nameOf(kind, id); el.append(t)
       const e = document.createElement('span'); e.className = 'e'; e.textContent = extra; el.append(e)
       if (kind === 'f') { const f = doc.frames.get(id)!; el.append(ab(f.hidden ? 'eyeoff' : 'eye', f.hidden ? 'Mostrar' : 'Ocultar', !!f.hidden, () => core.change([f], [], [], () => { f.hidden = !f.hidden || undefined }))) }
       if (kind === 'r') {
@@ -504,8 +506,8 @@ export function initUI(c: any): UI {
     }
     for (const k of order) if (parentOf(k) === undefined || !doc.conts.has(parentOf(k)!)) add(k, 0)
     if (!order.length) { const m = document.createElement('div'); m.className = 'more'; m.textContent = 'Nada aqui ainda. Use a ferramenta Quadro (F).'; tree.append(m) }
-    else if (rows >= MAXROWS) { const m = document.createElement('div'); m.className = 'more'; m.textContent = `Mostrando ${MAXROWS} de ${order.length.toLocaleString('pt-BR')} itens`; tree.append(m) }
-    $('lcount').textContent = `· ${order.length.toLocaleString('pt-BR')}`
+    else if (rows >= MAXROWS) { const m = document.createElement('div'); m.className = 'more'; m.textContent = `Mostrando ${MAXROWS} de ${order.length.toLocaleString(locale())} itens`; tree.append(m) }
+    $('lcount').textContent = `· ${order.length.toLocaleString(locale())}`
   }
   const dropPos = (ev: DragEvent, el: HTMLElement, kind: string): 'above' | 'below' | 'into' => {
     const r = el.getBoundingClientRect(), y = (ev.clientY - r.top) / r.height
@@ -519,10 +521,10 @@ export function initUI(c: any): UI {
   function buildLayers(f: Frame) {
     const box = $('llist'); box.replaceChildren()
     { const act = f.layers?.find((q: any) => q.id === f.activeLayer); val('lop').disabled = !f.layers; if (document.activeElement !== val('lop')) { val('lop').value = String(Math.round((act?.op ?? 1) * 100)); $('lopv').textContent = val('lop').value + '%' } }
-    const L = f.layers ?? [{ id: 1, name: 'Camada 1', vis: true }]
+    const L = f.layers ?? [{ id: 1, name: tr('Camada') + ' 1', vis: true }]
     for (const l of [...L].reverse()) {
       const el = document.createElement('div'); el.className = 'ly' + (l.id === f.activeLayer ? ' on' : '') + (l.vis ? '' : ' off')
-      const t = document.createElement('span'); t.className = 't'; t.textContent = l.name
+      const t = document.createElement('span'); t.className = 't'; t.translate = false; t.textContent = l.name
       el.append(ab(l.vis ? 'eye' : 'eyeoff', l.vis ? 'Ocultar camada' : 'Mostrar camada', !l.vis, () => core.layerToggle(f, l.id)), t)
       el.draggable = !!f.layers
       el.ondragstart = ev => { dragLayer = l.id; ev.dataTransfer!.setData('text/plain', 'layer'); ev.dataTransfer!.effectAllowed = 'move' }
@@ -621,7 +623,7 @@ export function initUI(c: any): UI {
     syncZoom()
     const info = core.perfInfo()
     if (!$('perf').hasAttribute('open')) return
-    $('stats').innerHTML = `<b>${info.idle ? 'ocioso' : info.fps + ' fps'}</b> · render ${info.cpuMs.toFixed(1)} ms · quadros ${doc.frames.size.toLocaleString('pt-BR')} · visíveis ${info.visible.toLocaleString('pt-BR')} · chamadas ${info.calls} · zoom ${Math.round(info.zoom * 100)}%<br><span class="dim">${info.gpu}</span>`
+    $('stats').innerHTML = `<b>${info.idle ? 'ocioso' : info.fps + ' fps'}</b> · render ${info.cpuMs.toFixed(1)} ms · quadros ${doc.frames.size.toLocaleString(locale())} · visíveis ${info.visible.toLocaleString(locale())} · chamadas ${info.calls} · zoom ${Math.round(info.zoom * 100)}%<br><span class="dim" translate="no">${info.gpu}</span>`
   }
 
   return { setWsName, saved, toggleHelp, showMenu, openExport, editNote, editingNote, init() { hydrateIcons(); ctxSync(); renderPalette(); toolChanged(S.tool); panels(true) }, panels, sheet, closeRename, syncZoom, toolCursor, renameOnStage, renameSelected, ctxSync, toast, colorChanged, toolChanged }

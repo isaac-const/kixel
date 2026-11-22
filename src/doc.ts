@@ -2,6 +2,7 @@
 // Unidade do mundo = 1 pixel de arte. Cada quadro guarda o RGBA composto numa fatia de uma página de atlas
 // (ou numa textura própria, quando passa de 64 px). Camadas só existem depois que a pessoa cria a segunda.
 
+import { tr } from './i18n'
 export const PAGE = 2048
 export type Cls = 16 | 32 | 64
 export const BIG = 0 as const
@@ -123,7 +124,7 @@ export class Doc {
   // ---------- camadas do quadro ----------
   layerBuf(f: Frame, id: number): Uint8Array | null { return f.layers ? (f.layers.find(l => l.id === id)?.px ?? null) : id === 1 ? f.px : null }
   activeBuf(f: Frame): Uint8Array { return this.layerBuf(f, f.activeLayer) ?? (f.layers ? f.layers[f.layers.length - 1].px : f.px) }
-  ensureLayers(f: Frame) { if (!f.layers) { f.layers = [{ id: 1, name: 'Camada 1', vis: true, px: f.px.slice() }]; f.activeLayer = 1 } return f.layers }
+  ensureLayers(f: Frame) { if (!f.layers) { f.layers = [{ id: 1, name: tr('Camada') + ' 1', vis: true, px: f.px.slice() }]; f.activeLayer = 1 } return f.layers }
   /** Recompõe as camadas visíveis em f.px (só a região pedida). */
   composite(f: Frame, x0 = 0, y0 = 0, x1 = f.w, y1 = f.h) {
     if (!f.layers) return

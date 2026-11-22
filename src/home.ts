@@ -2,6 +2,7 @@
 import type { WsMeta } from './workspaces'
 import type { MenuItem } from './ui'
 import { icon } from './icons'
+import { LANGS, getLang, setLang, onLang, locale, tr } from './i18n'
 
 export type HomeHooks = {
   list(): Promise<WsMeta[]>
@@ -10,10 +11,9 @@ export type HomeHooks = {
   menu(x: number, y: number, items: MenuItem[]): void
 }
 
-const rtf = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' })
 export function ago(t: number) {
-  const s = Math.round((t - Date.now()) / 1000), a = Math.abs(s)
-  if (a < 45) return 'agora há pouco'
+  const rtf = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' }), s = Math.round((t - Date.now()) / 1000), a = Math.abs(s)
+  if (a < 45) return tr('agora há pouco')
   if (a < 3600) return rtf.format(Math.round(s / 60), 'minute')
   if (a < 86400) return rtf.format(Math.round(s / 3600), 'hour')
   return rtf.format(Math.round(s / 86400), 'day')
@@ -24,6 +24,7 @@ export function initHome(h: HomeHooks) {
   root.innerHTML = `
     <header><div class="brand"><img src="/logo.svg" height="30" alt="Kixel" /></div>
       <div class="hactions">
+        <select id="hlang" aria-label="Idioma" translate="no"></select>
         <button id="hopen" data-icon="upload">Abrir arquivo .kixel</button>
         <button id="hnew" class="primary" data-icon="plus">Novo espaço de trabalho</button>
         <input id="hfile" type="file" accept=".kixel,application/octet-stream" hidden />
@@ -37,6 +38,8 @@ export function initHome(h: HomeHooks) {
   const file = root.querySelector('#hfile') as HTMLInputElement
   const $ = (s: string) => root.querySelector(s) as HTMLElement
   root.querySelectorAll<HTMLElement>('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', icon(el.dataset.icon!)))
+  const sel = $('#hlang') as HTMLSelectElement
+  for (const l of LANGS) sel.add(new Option(l.name, l.id)); sel.value = getLang(); sel.onchange = () => setLang(sel.value as 'pt' | 'en' | 'es'); onLang(() => { sel.value = getLang() })
   $('#hnew').onclick = () => h.create()
   $('#hopen').onclick = () => file.click()
   file.onchange = () => { const f = file.files?.[0]; if (f) h.importFile(f); file.value = '' }
@@ -50,14 +53,14 @@ export function initHome(h: HomeHooks) {
       const th = document.createElement('div'); th.className = 'thumb'
       if (m.thumb) { const im = document.createElement('img'); im.src = m.thumb; im.alt = ''; th.append(im) } else th.innerHTML = '<span>vazio</span>'
       const info = document.createElement('div'); info.className = 'winfo'
-      const name = document.createElement('b'); name.textContent = m.name
+      const name = document.createElement('b'); name.translate = false; name.textContent = m.name
       const meta = document.createElement('small'); meta.textContent = `${m.frames} quadro${m.frames === 1 ? '' : 's'} · editado ${ago(m.updated)}`
       info.append(name, meta)
       const more = document.createElement('button'); more.className = 'more'; more.innerHTML = icon('dots'); more.title = 'Mais ações'; more.setAttribute('aria-label', 'Mais ações')
       const items2 = (): MenuItem[] => [
-        { label: 'Abrir', fn: () => h.open(m.id) }, { label: 'Renomear', fn: () => { const n = prompt('Novo nome do espaço de trabalho', m.name); if (n && n.trim()) h.rename(m.id, n.trim()) } },
+        { label: 'Abrir', fn: () => h.open(m.id) }, { label: 'Renomear', fn: () => { const n = prompt(tr('Novo nome do espaço de trabalho'), m.name); if (n && n.trim()) h.rename(m.id, n.trim()) } },
         { label: 'Duplicar', fn: () => h.duplicate(m.id) }, { label: 'Baixar arquivo .kixel', fn: () => h.download(m.id) }, { sep: true, label: '' },
-        { label: 'Excluir', fn: () => { if (confirm(`Excluir "${m.name}"? Isso não pode ser desfeito.`)) h.remove(m.id) } }
+        { label: 'Excluir', fn: () => { if (confirm(tr(`Excluir "${m.name}"? Isso não pode ser desfeito.`))) h.remove(m.id) } }
       ]
       more.onclick = e => { e.stopPropagation(); const r = more.getBoundingClientRect(); h.menu(r.left, r.bottom + 4, items2()) }
       card.oncontextmenu = e => { e.preventDefault(); h.menu(e.clientX, e.clientY, items2()) }

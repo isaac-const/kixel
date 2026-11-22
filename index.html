@@ -40,7 +40,7 @@
     <div id="mtop"><button data-sheet="left" data-icon="frames">Camadas</button><button data-sheet="right" data-icon="panel">Painel</button></div>
     <nav id="tools" aria-label="Ferramentas"></nav>
     <div id="palette2" class="pal" aria-label="Paleta"></div>
-    <div id="empty" hidden><b>Tela vazia</b><span>Aperte <kbd>F</kbd> e arraste na tela para criar um quadro, ou escolha um tamanho pronto.</span><button id="emptygo" class="primary" data-icon="frame">Criar quadro</button></div>
+    <div id="empty" hidden><b>Tela vazia</b><span>Aperte <kbd translate="no">F</kbd> e arraste na tela para criar um quadro, ou escolha um tamanho pronto.</span><button id="emptygo" class="primary" data-icon="frame">Criar quadro</button></div>
     <div id="toast" role="status"></div>
   </main>
 
@@ -158,7 +158,7 @@
         <div class="row"><label class="f"><i>Formato</i><select id="efmt"><option value="png">PNG</option><option value="ase">Aseprite (.aseprite)</option><option value="sheet">Sprite sheet (PNG + JSON)</option><option value="svg">SVG</option><option value="godot">Godot (PNG + SpriteFrames)</option><option value="gpl">Paleta (.gpl)</option></select></label></div>
         <p id="efmtnote" class="hint"></p>
         <div class="row" id="escalerow"><label class="f"><i>Escala</i><select id="escale"><option value="auto">Automática</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option><option value="16">16×</option></select></label></div>
-        <p id="esize" class="hint"></p><p id="einfo" hidden></p>
+        <p id="esize" class="hint"></p><p id="einfo" hidden translate="no"></p>
         <div class="checks" id="ebgrow"><label><input id="ebg" type="checkbox" /> Incluir a cor de fundo</label><label id="eanimrow"><input id="eanim" type="checkbox" /> Quadros selecionados como animação</label></div>
         <div class="row" style="margin-top:8px"><button id="export" class="primary" data-icon="download">Baixar</button><button id="ecopy" data-icon="clip" title="Copiar a imagem" aria-label="Copiar a imagem"></button></div>
       </section>

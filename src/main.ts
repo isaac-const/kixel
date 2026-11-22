@@ -4,6 +4,7 @@ import { PALETTES } from './data'
 import { initUI, type MenuItem } from './ui'
 import { encodeGif } from './gif'
 import { initHome } from './home'
+import { tr, initI18n, onLang, locale } from './i18n'
 import { initPlayers } from './player'
 import * as W from './workspaces'
 import * as shp from './shapes'
@@ -244,12 +245,12 @@ function pickRef(r: Ref, wx: number, wy: number) {
 }
 
 // ================================================================ quadros: criar, apagar, duplicar, redimensionar
-const fname = (f: Frame) => f.name || 'Quadro ' + f.id
-const cname = (c: Cont) => c.name || 'Contêiner ' + c.id
+const fname = (f: Frame) => f.name || tr('Quadro') + ' ' + f.id
+const cname = (c: Cont) => c.name || tr('Contêiner') + ' ' + c.id
 /** Menor número livre: se o Quadro 1 for apagado, o próximo quadro novo volta a ser Quadro 1. */
 const freeName = (base: string, used: Set<string>) => { let n = 1; while (used.has(`${base} ${n}`)) n++; return `${base} ${n}` }
-const nextFrameName = () => freeName('Quadro', new Set([...doc.frames.values()].map(fname)))
-const nextContName = () => freeName('Contêiner', new Set([...doc.conts.values()].map(cname)))
+const nextFrameName = () => freeName(tr('Quadro'), new Set([...doc.frames.values()].map(fname)))
+const nextContName = () => freeName(tr('Contêiner'), new Set([...doc.conts.values()].map(cname)))
 type FrameRec = { dur?: number; id: number; x: number; y: number; w: number; h: number; name?: string; bg?: string; palId?: string; parent?: number; hidden?: boolean; trace: boolean; activeLayer: number; px: Uint8Array; layers?: Layer[]; z: number }
 const frameRec = (f: Frame): FrameRec => ({ dur: f.dur, id: f.id, x: f.x, y: f.y, w: f.w, h: f.h, name: f.name, bg: f.bg, palId: f.palId, parent: f.parent, hidden: f.hidden, trace: f.trace, activeLayer: f.activeLayer, px: f.px.slice(), layers: f.layers?.map(l => ({ ...l, px: l.px.slice() })), z: doc.zorder.indexOf('f:' + f.id) })
 function restoreFrame(r: FrameRec): Frame {
@@ -290,7 +291,7 @@ function duplicateSelection() {
   const dx = right - left + gapFor(Math.max(...list.map(f => f.w))), out: Frame[] = [], recs: FrameRec[] = []
   for (const src of list) {
     const g = doc.addFrame(src.x + dx, src.y, src.w, src.h)
-    Object.assign(g, { name: src.name ? src.name + ' cópia' : nextFrameName(), dur: src.dur, bg: src.bg, palId: src.palId, trace: src.trace, activeLayer: src.activeLayer, parent: src.parent })
+    Object.assign(g, { name: src.name ? src.name + tr(' cópia') : nextFrameName(), dur: src.dur, bg: src.bg, palId: src.palId, trace: src.trace, activeLayer: src.activeLayer, parent: src.parent })
     if (src.layers) g.layers = src.layers.map(l => ({ ...l, px: l.px.slice() }))
     g.px.set(src.px); R.upload(doc, g); out.push(g); recs.push(frameRec(g))
   }
@@ -321,14 +322,14 @@ function layerOp(f: Frame, fn: () => void) {
 function layerAdd(f: Frame) {
   layerOp(f, () => {
     const L = doc.ensureLayers(f), i = L.findIndex(l => l.id === f.activeLayer)
-    const nl: Layer = { id: doc.nextLayer++, name: 'Camada ' + (L.length + 1), vis: true, px: new Uint8Array(f.w * f.h * 4) }
+    const nl: Layer = { id: doc.nextLayer++, name: tr('Camada') + ' ' + (L.length + 1), vis: true, px: new Uint8Array(f.w * f.h * 4) }
     L.splice(i + 1, 0, nl); f.activeLayer = nl.id
   })
 }
 function layerDup(f: Frame) {
   layerOp(f, () => {
     const L = doc.ensureLayers(f), i = L.findIndex(l => l.id === f.activeLayer), src = L[i]
-    const nl: Layer = { id: doc.nextLayer++, name: src.name + ' cópia', vis: true, px: src.px.slice() }
+    const nl: Layer = { id: doc.nextLayer++, name: src.name + tr(' cópia'), vis: true, px: src.px.slice() }
     L.splice(i + 1, 0, nl); f.activeLayer = nl.id
   })
 }
@@ -390,7 +391,7 @@ function newAnimation() {
 }
 function createAnimation() {
   if (!selFrames().length) { toast('Selecione os quadros da animação (Shift + clique nos nomes).'); return }
-  const k = groupSelection(freeName('Animação', new Set([...doc.conts.values()].map(cname)))); if (k) setAnim(k, true)
+  const k = groupSelection(freeName(tr('Animação'), new Set([...doc.conts.values()].map(cname)))); if (k) setAnim(k, true)
 }
 function ungroup(c: Cont) {
   const m = doc.members(c.id), before = snap(m.frames, m.refs, [c], true), data = { ...pickKeys(c, CK), id: c.id }
@@ -669,7 +670,7 @@ function placeFrame(w: number, h: number, name?: string, at?: { x: number; y: nu
   const k = doc.contAt(f.x + w / 2, f.y + h / 2); if (k) f.parent = k.id
   setTool('pencil'); ui.sheet(null)
   if (!at) fitRect({ x: f.x, y: f.y, w: f.w, h: f.h }, 0.7)
-  toast(`${name ?? 'Quadro'} · ${w} × ${h}${pal ? ` · paleta ${PALETTES.find(p => p.id === pal)?.name}` : ''}. Pronto para desenhar.`)
+  toast(`${name ?? tr('Quadro')} · ${w} × ${h}${pal ? ` · paleta ${PALETTES.find(p => p.id === pal)?.name}` : ''}. Pronto para desenhar.`)
   return f
 }
 function finishFrameDrag() {
@@ -680,7 +681,7 @@ function finishFrameDrag() {
     const inside = doc.query(x, y, x + fw, y + fh).filter(f => { const c = center(f); return c.x >= x && c.x <= x + fw && c.y >= y && c.y <= y + fh })
     const refs = doc.refs.filter(r => { const c = center(r); return !r.hidden && c.x >= x && c.x <= x + fw && c.y >= y && c.y <= y + fh })
     const isAnim = S.tool === 'anim'
-    const k = createContainer(x, y, fw, fh, inside, refs, isAnim ? freeName('Animação', new Set([...doc.conts.values()].map(cname))) : undefined)
+    const k = createContainer(x, y, fw, fh, inside, refs, isAnim ? freeName(tr('Animação'), new Set([...doc.conts.values()].map(cname))) : undefined)
     if (isAnim) setAnim(k, true)
     setTool('select')
     toast(inside.length ? `Contêiner com ${inside.length} quadro${inside.length > 1 ? 's' : ''}.` : 'Contêiner vazio. Arraste quadros para dentro dele.')
@@ -911,7 +912,7 @@ function pasteFrames(at?: { x: number; y: number }) {
   const out: Frame[] = [], recs: FrameRec[] = []
   for (const r of frameClip) {
     const g = doc.addFrame(p.x + (r.x - mx), p.y + (r.y - my), r.w, r.h)
-    Object.assign(g, { name: r.name ? r.name + ' cópia' : nextFrameName(), dur: r.dur, bg: r.bg, palId: r.palId, trace: r.trace, activeLayer: r.activeLayer, hidden: r.hidden })
+    Object.assign(g, { name: r.name ? r.name + tr(' cópia') : nextFrameName(), dur: r.dur, bg: r.bg, palId: r.palId, trace: r.trace, activeLayer: r.activeLayer, hidden: r.hidden })
     if (r.layers) g.layers = r.layers.map(l => ({ ...l, px: l.px.slice() }))
     g.px.set(r.px); R.upload(doc, g); const k = doc.contAt(g.x + g.w / 2, g.y + g.h / 2); if (k) g.parent = k.id
     out.push(g); recs.push(frameRec(g))
@@ -1444,7 +1445,7 @@ function drawNote(n: Note) {
       octx.save(); octx.beginPath(); octx.rect(r.x, r.y, r.w, r.h); octx.clip()
       octx.font = `500 ${fs}px "Geist Variable", system-ui, sans-serif`; octx.textBaseline = 'top'; octx.fillStyle = n.text ? '#1b1d24' : 'rgba(27,29,36,0.45)'
       let y = r.y + pad; const maxW = r.w - pad * 2
-      for (const para of (n.text || 'Nota vazia').split('\n')) {
+      for (const para of (n.text || tr('Nota vazia')).split('\n')) {
         let line = ''
         for (const word of para.split(' ')) { const t = line ? line + ' ' + word : word; if (octx.measureText(t).width > maxW && line) { octx.fillText(line, r.x + pad, y); y += fs * 1.4; line = word } else line = t }
         octx.fillText(line, r.x + pad, y); y += fs * 1.4
@@ -1453,7 +1454,7 @@ function drawNote(n: Note) {
     }
   }
   if (on) { octx.strokeStyle = ACC; octx.lineWidth = 2; octx.strokeRect(r.x, r.y, r.w, r.h); for (const p of Object.values(handlePoints(n, false))) handle(p[0], p[1]) }
-  label((n.text.split('\n')[0] || 'Nota').slice(0, 30), r.x, r.y - 4, on ? ACC : MUT, null, { k: 'n', id: n.id }, Math.max(90, r.w))
+  label((n.text.split('\n')[0] || tr('Nota')).slice(0, 30), r.x, r.y - 4, on ? ACC : MUT, null, { k: 'n', id: n.id }, Math.max(90, r.w))
 }
 let onion: { id: number; up: number; cv: HTMLCanvasElement } | null = null
 function drawOverlay() {
@@ -1493,7 +1494,7 @@ function drawOverlay() {
   } else if (selSet.size > 1) {
     const a = rectPx(boundsOf([...selSet]))
     octx.strokeStyle = ACC; octx.lineWidth = 1; octx.setLineDash([5, 4]); octx.strokeRect(a.x - 4.5, a.y - 4.5, a.w + 9, a.h + 9); octx.setLineDash([])
-    label(`${selSet.size} quadros`, a.x + a.w / 2 - 30, a.y + a.h + 30, ACC_INK, ACC)
+    label(tr(`${selSet.size} quadros`), a.x + a.w / 2 - 30, a.y + a.h + 30, ACC_INK, ACC)
   }
   if (rs) { const a = rectPx(rs.n), c = rs.kind === 'r' ? REFC : ACC; octx.strokeStyle = c; octx.lineWidth = 2; octx.setLineDash([6, 4]); octx.strokeRect(a.x, a.y, a.w, a.h); octx.setLineDash([]); label(`${Math.round(rs.n.w)} × ${Math.round(rs.n.h)}`, a.x + a.w / 2 - 28, a.y + a.h + 30, ACC_INK, c) }
   if (fdrag) {
@@ -1507,7 +1508,7 @@ function drawOverlay() {
     if (r.hidden || r.x > vr.maxx || r.x + r.w < vr.minx || r.y > vr.maxy || r.y + r.h < vr.miny) continue
     const a = rectPx(r), on = S.selRef === r
     if (on) { octx.strokeStyle = REFC; octx.lineWidth = 2; octx.setLineDash([6, 4]); octx.strokeRect(a.x, a.y, a.w, a.h); octx.setLineDash([]); if (!r.locked) for (const p of Object.values(handlePoints(r, true))) handle(p[0], p[1]) }
-    label(r.name + (r.locked ? ' · bloqueada' : ''), a.x, a.y - 4, on ? REFC : MUT, null, { k: 'r', id: r.id }, Math.max(90, a.w))
+    label(r.name + (r.locked ? tr(' · bloqueada') : ''), a.x, a.y - 4, on ? REFC : MUT, null, { k: 'r', id: r.id }, Math.max(90, a.w))
   }
   if (S.opt.onion && S.sel && S.sel.parent !== undefined && selSet.size === 1) {
     const c = doc.conts.get(S.sel.parent), list = c ? animFrames(c) : [], i = list.indexOf(S.sel), prev = i > 0 ? list[i - 1] : null
@@ -1557,7 +1558,7 @@ function spawn(n: number) {
   }
   for (const k of touched) { const [c, p] = k.split(':').map(Number); R.uploadPage(doc, c as 16, p, doc.pages[c as 16][p].used) }
   fitAll(false); invalidate()
-  toast(`${n.toLocaleString('pt-BR')} quadros criados em ${Math.round(performance.now() - t0)} ms`)
+  toast(`${n.toLocaleString(locale())} quadros criados em ${Math.round(performance.now() - t0)} ms`)
 }
 function pct(a: number[], p: number) { const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))] ?? 0 }
 async function runBench(seconds = 10) {
@@ -1592,7 +1593,7 @@ async function runBench(seconds = 10) {
     dpr: R.dpr, tela: `${cssW}x${cssH}`, gpu: R.rendererName, ua: navigator.userAgent
   }
   cam = saved; invalidate(); ui.syncZoom()
-  $('benchout').innerHTML = `<b>${result.fps_medio} fps</b> na tela · custo por quadro: médio ${result.custo_ms_medio} ms, p95 ${result.custo_ms_p95} ms, pior ${result.custo_ms_max} ms (cabe ${result.capacidade_fps} fps) · ${result.quadros_acima_de_20ms} quadros acima de 20 ms · ${N.toLocaleString('pt-BR')} quadros`
+  $('benchout').innerHTML = `<b>${result.fps_medio} fps</b> na tela · custo por quadro: médio ${result.custo_ms_medio} ms, p95 ${result.custo_ms_p95} ms, pior ${result.custo_ms_max} ms (cabe ${result.capacidade_fps} fps) · ${result.quadros_acima_de_20ms} quadros acima de 20 ms · ${N.toLocaleString(locale())} quadros`
   try { navigator.sendBeacon('/__bench', JSON.stringify(result)) } catch { /* sem servidor */ }
   ;(window as any).__benchResult = result
   return result
@@ -1663,17 +1664,17 @@ async function enterWorkspace(id: string) {
 async function showHome() {
   await leaveCurrent(); wsMeta = null; setView('home')
   const old = await W.legacyAutosave().catch(() => undefined)   // projeto salvo antes da tela inicial existir
-  if (old && !(await W.listWs()).length) { const now = Date.now(); await W.putWs({ id: W.newId(), name: 'Projeto recuperado', created: now, updated: now, frames: 0 }, old); await W.dropLegacy() }
+  if (old && !(await W.listWs()).length) { const now = Date.now(); await W.putWs({ id: W.newId(), name: tr('Projeto recuperado'), created: now, updated: now, frames: 0 }, old); await W.dropLegacy() }
   await home.refresh()
 }
 async function createWorkspace() {
   const list = await W.listWs(), now = Date.now(), id = W.newId()
-  let n = 1; const names = new Set(list.map(m => m.name)); let name = 'Sem título'; while (names.has(name)) name = `Sem título ${++n}`
+  let n = 1; const names = new Set(list.map(m => m.name)); let name = tr('Sem título'); while (names.has(name)) name = `${tr('Sem título')} ${++n}`
   await W.putWs({ id, name, created: now, updated: now, frames: 0 }); location.hash = '#/w/' + id
 }
 function goHome() { location.hash = '#/' }
 function renameWs(name: string) {
-  name = name.trim() || 'Sem título'; ui.setWsName(name)
+  name = name.trim() || tr('Sem título'); ui.setWsName(name)
   if (wsMeta) { wsMeta = { ...wsMeta, name }; void W.putMeta(wsMeta) }
 }
 async function importProjectFile(f: File) {
@@ -1695,6 +1696,7 @@ async function route() {
   const w = location.hash.match(/^#\/w\/([\w]+)/)
   if (w) await enterWorkspace(w[1]); else await showHome()
 }
+onLang(() => { invalidate(); ui.panels(true); if (document.body.dataset.view === 'home') void home.refresh() })
 if (noAuto) setView('editor'); else { window.addEventListener('hashchange', () => void route()); void route() }
 resize()
 void document.fonts.load('600 12px "Geist Variable"').then(() => invalidate())
@@ -1706,7 +1708,7 @@ function makeStarter() {
   R.upload(doc, f); doc.clearHistory()
 }
 makeStarter()
-setTool('pencil'); ui.init()
+setTool('pencil'); ui.init(); initI18n()
 cam = { x: 0, y: 0, zoom: Math.max(1, Math.floor(Math.min(cssW, cssH) / 24)) }
 ;(window as any).__app = { R, doc, get cam() { return cam }, spawn, fitAll, newFrame, setTool, demoImage, selSet, S, ui, createContainer, groupSelection, reshapeFrame, layerAdd, selectFrame, selectFrames, selectRef, selectNote, selectCont, loadImage, addImage, runBench }
 ;(window as any).__runBench = runBench

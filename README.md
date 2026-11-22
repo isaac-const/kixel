@@ -94,6 +94,12 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Contêiner mais justo:** a margem e o espaço entre quadros agora são proporcionais ao tamanho dos quadros (3 a 8 unidades; antes eram sempre 12 e 8).
 - Abrir e baixar arquivo `.kixel` ficam só no menu do logo (e Ctrl+O, Ctrl+S).
 
+## v10: idiomas, velocidade e git
+- **Português, inglês e espanhol:** o idioma segue o do navegador e muda na hora pelo menu do logo (seção "Idioma") ou pelo seletor da tela inicial; a escolha fica guardada. O texto-fonte do código é o português; `src/i18n.ts` traduz na tela (textos, dicas e avisos) usando os dicionários `src/i18n/en.ts` e `src/i18n/es.ts`. Chaves com `{nome}` casam com trechos variáveis (números, nomes) e `{~nome}` também traduz o trecho. Nomes que você digita (quadros, camadas, espaços) nunca são traduzidos; os nomes padrão de itens novos (Quadro 1, Camada 1…) nascem no idioma em uso.
+- **Achar o que falta traduzir:** abra o app com `?probe=1` no endereço; cada texto sem tradução é gravado em `i18n-missing.log` (só no servidor de desenvolvimento).
+- **Player:** velocidade contínua de 0,1× a 10× (campo, rolagem do mouse, − e +), FPS até 120 e duração própria de cada frame.
+- **Git:** o projeto agora é um repositório; cada funcionalidade nova entra em um commit.
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 
