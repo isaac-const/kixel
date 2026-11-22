@@ -1714,5 +1714,5 @@ requestAnimationFrame(tick)
 {
   const q = new URLSearchParams(location.search), n = Number(q.get('auto'))
   if (n > 0) { spawn(n); setTimeout(async () => { await runBench(Number(q.get('s')) || 10); document.title = 'bench-pronto' }, 1500) }
-  else toast('Dica: B lápis · E borracha · G balde · F quadro · S contêiner · Shift + clique seleciona vários · Espaço move a tela.')
+  else toast(matchMedia('(pointer:coarse)').matches ? 'Dica: 2 dedos movem a tela e dão zoom · toque rápido com 2 dedos desfaz.' : 'Dica: B lápis · E borracha · G balde · F quadro · S contêiner · Shift + clique seleciona vários · Espaço move a tela.')
 }

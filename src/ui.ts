@@ -56,6 +56,7 @@ export function initUI(c: any): UI {
   const sheet = (name: 'left' | 'right' | null) => { document.body.classList.toggle('sheet-left', name === 'left'); document.body.classList.toggle('sheet-right', name === 'right') }
   for (const b of document.querySelectorAll<HTMLButtonElement>('#mtop [data-sheet]')) b.onclick = () => sheet(b.dataset.sheet as 'left' | 'right')
   $('scrim').onclick = () => sheet(null)
+  for (const b of document.querySelectorAll<HTMLElement>('[data-close]')) b.onclick = () => sheet(null)
 
   // ------------------------------------------------------------ paleta (uma por quadro)
   const pals = [$('palette'), $('palette2')], palsel = $<HTMLSelectElement>('palsel')
