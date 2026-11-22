@@ -8,7 +8,7 @@ export type MenuItem = { label: string; key?: string; fn?: () => void; disabled?
 export type UI = {
   setWsName(n: string): void
   saved(d: Date): void; toggleHelp(): void
-  showMenu(x: number, y: number, items: MenuItem[], anchor?: HTMLElement): void; openExport(): void
+  showMenu(x: number, y: number, items: MenuItem[], anchor?: HTMLElement, touch?: boolean): void; openExport(): void
   init(): void; panels(force?: boolean): void; sheet(n: 'left' | 'right' | null): void; closeRename(): void; syncZoom(): void
   toolCursor(t: string): string; renameOnStage(k: 'f' | 'c' | 'r', id: number, x: number, y: number, w: number): void; renameSelected(): void; editNote(id: number): void; editingNote(): number
   ctxSync(): void; toast(m: string): void; colorChanged(): void; toolChanged(t: string): void
@@ -343,19 +343,22 @@ export function initUI(c: any): UI {
   // ------------------------------------------------------------ menu de botão direito
   let menuEl: HTMLElement | null = null, menuAnchor: HTMLElement | null = null
   const closeMenu = () => { menuEl?.remove(); menuEl = null; menuAnchor = null }
-  function showMenu(x: number, y: number, items: MenuItem[], anchor?: HTMLElement) {
+  function showMenu(x: number, y: number, items: MenuItem[], anchor?: HTMLElement, touch = false) {
     closeMenu(); closeRename(); menuAnchor = anchor ?? null
+    let armed = !touch   // menu do toque longo: ignora o clique gerado ao levantar o dedo
+    if (touch) window.addEventListener('pointerup', () => setTimeout(() => { armed = true }, 120), { once: true })
     const m = document.createElement('div'); m.className = 'cmenu'; m.setAttribute('role', 'menu')
     for (const it of items) {
       if (it.sep) { m.append(document.createElement('hr')); continue }
       const b = document.createElement('button'); b.disabled = !!it.disabled; b.setAttribute('role', 'menuitem')
       b.innerHTML = `<span>${it.label}</span>${it.key ? `<kbd translate="no">${it.key}</kbd>` : ''}`
-      b.onclick = () => { closeMenu(); it.fn?.() }
+      b.onclick = () => { if (!armed) return; closeMenu(); it.fn?.() }
       m.append(b)
     }
     document.body.append(m); menuEl = m
     const r = m.getBoundingClientRect()
-    m.style.left = Math.max(6, Math.min(x, innerWidth - r.width - 6)) + 'px'; m.style.top = Math.max(6, Math.min(y, innerHeight - r.height - 6)) + 'px'
+    const ty = touch ? (y - r.height - 18 >= 6 ? y - r.height - 18 : y + 30) : y   // no toque, o menu aparece longe do dedo
+    m.style.left = Math.max(6, Math.min(x, innerWidth - r.width - 6)) + 'px'; m.style.top = Math.max(6, Math.min(ty, innerHeight - r.height - 6)) + 'px'
   }
   window.addEventListener('pointerdown', e => { if (menuEl && !menuEl.contains(e.target as Node) && !(menuAnchor && menuAnchor.contains(e.target as Node))) closeMenu() }, true)
   window.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu() }, true)

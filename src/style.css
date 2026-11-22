@@ -371,3 +371,10 @@ details.acc>summary{min-height:38px}details.acc>summary span[data-icon]{display:
 #home select#hlang{height:38px;background:var(--p2);border:1px solid #ffffff14;border-radius:9px;color:var(--ink);padding:0 10px;font:600 13px var(--f-ui);cursor:pointer}
 
 .f{min-width:0}.f select{min-width:0;max-width:72%;text-overflow:ellipsis}
+
+/* player compacto (padrão no celular): só prévia, play e FPS; o botão ▾ mostra o resto */
+.aplayer .more{width:24px;height:24px;min-height:0;padding:0;border-radius:7px;background:var(--p2);border:1px solid #ffffff14;color:var(--mut);flex:none}
+.aplayer .more svg{width:13px;height:13px;transition:transform .15s}.aplayer .more[aria-pressed=true] svg{transform:rotate(180deg)}
+.aplayer.mini .afilm,.aplayer.mini .aspd{display:none}
+@media (max-width:900px){.aplayer{width:208px;padding:8px;gap:6px}.aplayer .aview{height:110px}}
+.cmenu{max-height:calc(100vh - 12px);overflow-y:auto;overscroll-behavior:contain}

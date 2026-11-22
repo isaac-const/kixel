@@ -479,4 +479,6 @@ export const ES: Record<string, string> = {
   "Seleção de pixels": "Selección de píxeles",
   "{n} px": "{n} px",
   "cópia": "copia",
+  "Mostrar ou esconder miniaturas, velocidade e duração": "Mostrar u ocultar miniaturas, velocidad y duración",
+  "Mais controles": "Más controles",
 }

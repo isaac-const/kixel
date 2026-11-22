@@ -35,7 +35,7 @@ export function initPlayers(c: PlayerCtx) {
 
   function make(k: Cont): P {
     const el = document.createElement('div'); el.className = 'aplayer'; el.setAttribute('role', 'group'); el.setAttribute('aria-label', 'Player de animação')
-    el.innerHTML = `<div class="ahead"><b></b><small></small><button class="mode" aria-pressed="false" title="Tamanho da janela: ligado, o sprite acompanha o zoom do canvas (tamanho real). Desligado, a janela tem tamanho fixo na tela." aria-label="Acompanhar o zoom">${icon('pin')}</button></div>
+    el.innerHTML = `<div class="ahead"><b></b><small></small><button class="more" aria-pressed="false" title="Mostrar ou esconder miniaturas, velocidade e duração" aria-label="Mais controles">${icon('chevd')}</button><button class="mode" aria-pressed="false" title="Tamanho da janela: ligado, o sprite acompanha o zoom do canvas (tamanho real). Desligado, a janela tem tamanho fixo na tela." aria-label="Acompanhar o zoom">${icon('pin')}</button></div>
       <div class="aview"><canvas width="16" height="16"></canvas><div class="none">Jogue quadros de mesmo tamanho dentro do contêiner</div></div>
       <div class="afilm" aria-label="Ordem dos frames: arraste para mudar"></div>
       <div class="actl">
@@ -49,6 +49,9 @@ export function initPlayers(c: PlayerCtx) {
     layer.append(el)
     const q = (s: string) => el.querySelector(s) as HTMLElement
     q('.ahead b').translate = false
+    if (matchMedia('(max-width:900px)').matches) el.classList.add('mini')   // no celular o player começa compacto
+    const moreBtn = q('.more'); moreBtn.setAttribute('aria-pressed', String(!el.classList.contains('mini')))
+    moreBtn.onclick = () => { el.classList.toggle('mini'); moreBtn.setAttribute('aria-pressed', String(!el.classList.contains('mini'))); p.sizeKey = ''; p.vh = 0 }
     const p: P = { el, cv: q('canvas') as HTMLCanvasElement, view: q('.aview'), film: q('.afilm'), title: q('.ahead b'), count: q('.ahead small'), play: q('.play'), spd: q('.sv input') as HTMLInputElement, durIn: q('.dv input') as HTMLInputElement, durLbl: q('.dl'), mode: q('.mode'), fps: q('.fp input') as HTMLInputElement, none: q('.none'), idx: 0, t: performance.now(), key: '', fkey: '', tkey: '', w: 0, h: 0, pos: '', dragId: 0, sizeKey: '', vh: 0 }
     const step = (d: number) => { const k2 = cont(k.id); if (!k2) return; const n = c.animFrames(k2).length; if (!n) return; k2.paused = true; p.idx = (p.idx + d + n) % n; p.t = performance.now(); p.key = ''; c.touch() }
     q('.prev').onclick = () => step(-1); q('.next').onclick = () => step(1)
@@ -123,7 +126,7 @@ export function initPlayers(c: PlayerCtx) {
       else {
         const sz = safeZone(now, st)
         // se a tela é baixa, o preview encolhe para o player inteiro caber entre as barras
-        const fixed = p.h - p.view.offsetHeight, vh = Math.max(56, Math.min(160, sz.bottom - sz.top - fixed))
+        const fixed = p.h - p.view.offsetHeight, vh = Math.max(56, Math.min(p.el.classList.contains('mini') ? 120 : 160, sz.bottom - sz.top - fixed))
         if (p.vh !== vh) { p.vh = vh; p.view.style.height = vh + 'px'; p.h = p.el.offsetHeight }
         top = Math.max(sz.top, Math.min(tl.y, sz.bottom - p.h))
         if (br.x + 12 + p.w <= st.w - 8) left = br.x + 12

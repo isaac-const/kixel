@@ -1126,7 +1126,7 @@ function menuItems(wx: number, wy: number): MenuItem[] {
   }
   return it
 }
-function openContext(cx: number, cy: number, wx: number, wy: number) { ui.showMenu(cx, cy, menuItems(wx, wy)) }
+function openContext(cx: number, cy: number, wx: number, wy: number, touch = false) { ui.showMenu(cx, cy, menuItems(wx, wy), undefined, touch) }
 
 // ---- eventos
 ov.addEventListener('mousedown', e => { if (e.button === 1) e.preventDefault() })
@@ -1147,6 +1147,7 @@ ov.addEventListener('pointerdown', e => {
     return
   }
   if (ptrs.size > 1) return
+  if (e.pointerType === 'touch') armLongPress(sx, sy, e.clientX, e.clientY)
   const w = s2w(sx, sy); start = { sx, sy, cx: cam.x, cy: cam.y, wx: w.x, wy: w.y }
   dragMoved = false; anim = null
   if (e.button === 1) { e.preventDefault(); mode = 'pan'; return }
@@ -1303,6 +1304,7 @@ function finishMarquee() {
   selectFrames(m.add ? [...new Set([...selFrames(), ...hits])] : hits)
 }
 const up = (e: PointerEvent) => {
+  clearTimeout(lpTimer)
   const wasGesture = mode === 'gesture'
   ptrs.delete(e.pointerId)
   if (wasGesture) {
@@ -1328,9 +1330,9 @@ const up = (e: PointerEvent) => {
 }
 ov.addEventListener('pointerup', up); ov.addEventListener('pointercancel', up)
 ov.addEventListener('pointerleave', () => { if (!ptrs.size) { S.hover = null; invalidate() } })
-ov.addEventListener('contextmenu', e => {
-  e.preventDefault()
-  const rc = ov.getBoundingClientRect(), sx = e.clientX - rc.left, sy = e.clientY - rc.top, w = s2w(sx, sy)
+/** Menu do que está sob o ponto (clique direito no mouse, toque longo no celular). */
+function contextAt(clientX: number, clientY: number, touch = false) {
+  const rc = ov.getBoundingClientRect(), sx = clientX - rc.left, sy = clientY - rc.top, w = s2w(sx, sy)
   if (mode === 'gesture' || mode === 'stroke') return
   const f = doc.hit(w.x, w.y)
   if (f && (S.tool === 'pencil' || S.tool === 'eraser')) return   // nos pincéis, o botão direito apaga
@@ -1338,8 +1340,21 @@ ov.addEventListener('contextmenu', e => {
   if (lb) { if (lb.k === 'f') { const q = doc.frames.get(lb.id)!; if (!selSet.has(q)) selectFrame(q) } else if (lb.k === 'c') selectCont(doc.conts.get(lb.id)!); else if (lb.k === 'n') selectNote(doc.notes.find(q => q.id === lb.id)!); else selectRef(doc.refs.find(q => q.id === lb.id)!) }
   else if (f) { if (!selSet.has(f)) selectFrame(f) }
   else { const nn = noteHitW(w.x, w.y), rr = doc.hitRef(w.x, w.y); if (nn) selectNote(nn); else if (rr) selectRef(rr); else clearSel() }
-  ui.panels(true); openContext(e.clientX, e.clientY, w.x, w.y)
-})
+  ui.panels(true); openContext(clientX, clientY, w.x, w.y, touch)
+}
+ov.addEventListener('contextmenu', e => { e.preventDefault(); contextAt(e.clientX, e.clientY) })
+// toque longo (550 ms parado) abre o mesmo menu; vale também onde o navegador não manda o evento de menu (iPhone)
+let lpTimer = 0, lpStart = { sx: 0, sy: 0, cx: 0, cy: 0 }
+function armLongPress(sx: number, sy: number, cx: number, cy: number) {
+  clearTimeout(lpTimer); lpStart = { sx, sy, cx, cy }
+  lpTimer = window.setTimeout(() => {
+    if (ptrs.size !== 1) return
+    const cur = [...ptrs.values()][0]; if (Math.hypot(cur.x - lpStart.sx, cur.y - lpStart.sy) > 8) return
+    if (['stroke', 'shape', 'pending', 'tap', 'pxmove', 'pxsel', 'framedrag', 'contdrag', 'resize', 'gesture', 'marquee'].includes(mode)) return
+    mode = 'ignore'; noteDrag = null; refDrag = null; contDrag = null; dragSnap = null; dragStart = []
+    contextAt(lpStart.cx, lpStart.cy, true)
+  }, 550)
+}
 ov.addEventListener('dblclick', e => {
   const rc = ov.getBoundingClientRect(), sx = e.clientX - rc.left, sy = e.clientY - rc.top
   const nd = labelHit(sx, sy)?.k === 'n' ? null : noteHitW(s2w(sx, sy).x, s2w(sx, sy).y)
