@@ -2,10 +2,13 @@
 
 Editor de pixel art em tela infinita: vários quadros, contêineres, camadas, referências, notas, animação com player, exportação (PNG, .aseprite, sprite sheet, SVG, GIF, Godot), espaços de trabalho e tradução em português, inglês e espanhol. Feito com TypeScript, WebGL2 e Vite.
 
+O histórico de mudanças está nos commits (`git log`).
+
 ## Como rodar
 ```bash
 npm install
 npm run dev          # http://localhost:5190 (e na rede local)
+npm run build        # tsc + vite build
 ```
 
 ### No celular Android, pelo cabo
@@ -22,146 +25,81 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 | Mover a tela | Espaço + arrastar, ou botão do meio | 2 dedos |
 | Zoom | roda do mouse (passos inteiros) | pinça |
 | Desfazer | Ctrl+Z | toque rápido com 2 dedos |
-| Novo quadro | F e clique, ou botão "＋ Quadro" | botão |
-| Mover quadro | V e arrastar; setas movem 1 pixel | arrastar |
+| Menu do que está sob o cursor | botão direito | toque longo |
 | Ver tudo | Shift+1 | botão ⤢ |
 | Zoom no quadro | Shift+2 ou duplo clique | – |
-| Espelho, pincel | X, `[` e `]` | opções do topo |
+| Atalhos | `?` | botão ao lado do zoom |
 
-## v2: o que mudou
-- **Árvore de camadas única (esquerda):** quadros, imagens de referência e contêineres na mesma lista, com ícones diferentes. Arraste uma linha para reordenar; solte no meio de um contêiner para colocar dentro. Olho oculta, cadeado trava a imagem, duplo clique renomeia.
-- **Nome do quadro no canvas:** clique no nome acima do quadro para selecionar (Shift + clique soma), arraste o nome para mover, duplo clique renomeia (F2 também).
-- **Redimensionar:** alças nos 8 pontos do quadro ou do contêiner; nas imagens, 4 cantos mantendo a proporção. Os pixels ficam no lugar.
-- **Seleção múltipla:** Shift + clique, ou arrastar uma área vazia (Shift soma). Mover, duplicar, apagar, exportar e agrupar valem para todos.
-- **Contêineres (S, ou Ctrl+G com quadros selecionados):** arrastar o contêiner move todos os quadros dentro. Quadro solto com o centro dentro de um contêiner passa a fazer parte dele. Ctrl+Shift+G desfaz o agrupamento.
-- **Camadas dentro do quadro:** nova, duplicar, subir, descer, ocultar, renomear. O desenho vai na camada ativa.
-- **Paleta por quadro:** cada quadro guarda a sua. Quadro novo herda a do último quadro usado; escolher um console nos tamanhos já traz a paleta dele. "Usar em todos os quadros" aplica de uma vez.
-- **Fundo do quadro:** cor sólida ou transparente (xadrez), também nas cores da paleta.
-- **Referência:** opacidade começa em 100%, bloquear, mostrar na frente, e três ações com explicação ("Calcar no quadro", "Reduzir para pixels", "Fixar na tela").
-- **Desfazer:** cobre agora adicionar/excluir imagem, mover, redimensionar, renomear, fundo, paleta, camadas, ordem, agrupar e opacidade.
-- **Exportar:** aparece ao selecionar um quadro, mostra o tamanho final em pixels, escala automática ou 1× a 16×, opção de incluir o fundo, baixar um PNG por quadro e copiar para a área de transferência.
-- **Botão do meio** só move a tela; colar imagem só vale com Ctrl+V.
+## Ferramentas
+As parecidas ficam num botão só na barra, com uma seta que abre a lista. O botão mostra a última usada e o Kixel lembra a escolha. Os atalhos continuam valendo.
 
-## v3: notas, projeto e formatos
-- **Nota (T):** componente de texto na tela, como as imagens: arrasta, redimensiona pelas alças, escala com o zoom, tem cor e tamanho de texto, aparece na árvore e entra no desfazer. Duplo clique escreve direto nela.
-- **Projeto (Ctrl+S / Ctrl+O):** salva e abre um arquivo `.kixel` (quadros com camadas, contêineres, imagens, notas, ordem e paletas).
-- **Exportar:** PNG, `.aseprite` (com as camadas; vários quadros do mesmo tamanho podem virar uma animação), sprite sheet PNG + JSON no formato do Aseprite, SVG e paleta `.gpl`.
+| Grupo | Ferramentas |
+|---|---|
+| Soltas | Selecionar (V), Mão (H), Lápis (B), Borracha (E), Sombra (D), Conta-gotas (I), Nota (T) |
+| Formas | Retângulo (U), Linha (L), Elipse (O), Polígono (P), Curva (C) |
+| Seleção | Retângulo (M), Laço (Q), Varinha mágica (W) |
+| Preenchimento | Balde (G), Degradê (R) |
+| Quadros | Quadro (F), Contêiner (S), Animação (A) |
 
-## v4: menu, formas, seleção e animação
-- **Botão direito (estilo Figma):** menu do que está sob o cursor: quadro (copiar, colar aqui, duplicar, ordem, agrupar, espelhar, girar, renomear, ocultar, ir até, exportar, excluir), contêiner, imagem, nota e tela vazia. Também funciona nas linhas da árvore. Com lápis ou borracha sobre um quadro, o botão direito continua apagando.
-- **Ordem de camadas valendo de verdade:** a ordem da lista decide qual quadro aparece por cima (e qual recebe o clique) quando eles se sobrepõem.
-- **Atalhos novos:** Ctrl+C/V (quadros ou pixels), Ctrl+] e Ctrl+[ (ordem), Shift+H/V (espelhar), Shift+R (girar 90°), Ctrl+Shift+H (ocultar), Ctrl+Shift+L (bloquear imagem).
-- **Formas:** linha (L), retângulo (U), elipse (O), com opção de preencher e Shift para travar ângulo, quadrado ou círculo. Cada forma é um passo no desfazer.
-- **Seleção de pixels (M):** arraste para selecionar, arraste dentro para mover, Delete limpa, Ctrl+C/X/V copiam, recortam e colam.
-- **Animação:** um contêiner com 2 ou mais quadros do mesmo tamanho vira animação, tocando da esquerda para a direita. Prévia com FPS, "Novo frame" (cópia do último), GIF animado e `.aseprite` com os frames.
+### Desenho
+- **Pincel:** tamanho de 1 a 32 px e opacidade de 1 a 100%, editáveis digitando ou rolando o mouse sobre o número (Shift muda de 1 em 1). A opacidade vale para lápis, formas e balde; na borracha tira só parte da opacidade.
+- **Opções:** pixel perfect, espelho horizontal (X) e vertical (Y), pincel redondo, modo tile (o desenho dá a volta pelas bordas), onion skin, preencher formas, balde global.
+- **Sombra (D):** clareia ao pintar, Alt escurece (sombras para o azul, luzes para o amarelo).
+- **Pontilhado:** 25%, 50% ou 75%, em padrão fixo, para lápis, borracha e formas.
+- **Formas:** Shift trava ângulo, quadrado ou círculo. Polígono: clique nos pontos, clicar no primeiro fecha, clicar no último (ou Enter) termina, Backspace tira o último ponto, Esc cancela. Curva: clique no começo, no fim e onde ela deve entortar.
+- **Degradê (R):** da cor atual até a cor final, pontilhado (Bayer 4x4) ou em faixas de 5 tons, linear ou radial. Com seleção de pixels, só ela é preenchida.
+- **Tolerância:** quanto uma cor pode diferir, na varinha e no balde.
 
-## v5: cores, alinhar, importar, camadas e salvamento
-- **Cores do quadro (como "Selection colors" do Figma):** aba Cor lista as cores do quadro selecionado, com hex, opacidade e quantos pixels usam. Mudar uma troca em todos os pixels (de todas as camadas) e entra no desfazer.
-- **Salvamento automático** no navegador (IndexedDB), recuperado ao abrir. Ctrl+S / Ctrl+O continuam salvando e abrindo arquivos `.kixel`. "Novo projeto" fica no menu do botão direito na tela vazia.
-- **Alinhar e distribuir** (2 ou mais quadros) na aba Quadro, e **linhas-guia** que grudam nas bordas e nos centros ao arrastar (Ctrl desliga).
-- **Importar:** `.aseprite` (camadas, opacidade, frames viram animação), sprite sheet em grade (Fatiar em quadros) e paletas `.gpl`, `.hex`, `.pal`, `.txt`. Também extrai a paleta de uma imagem.
-- **Camadas:** opacidade por camada, mesclar com a de baixo e arrastar para reordenar. Vale também no `.aseprite`.
-- **Ordem entre imagens e quadros:** imagens de referência entram na lista e seguem a ordem de camadas junto com os quadros.
-- **Animação:** duração por frame, frame anterior semitransparente (onion skin) e prévia respeitando os tempos.
-- **Ajuda de atalhos** (tecla ? ou botão ao lado do zoom).
+### Seleção de pixels
+- Retângulo, laço (à mão) ou varinha mágica (cores parecidas; Shift soma, Alt pega todos do quadro). Ctrl+Shift+I inverte, Ctrl+A seleciona tudo, Ctrl+D desmarca.
+- 8 alças para esticar ou amassar, sem borrar. Shift mantém a proporção; passar da borda oposta espelha.
+- Mover arrastando ou com as setas (Shift: 8 px). Alt+arrastar leva uma cópia.
+- Shift+H e Shift+V espelham, Shift+R gira 90°, girar em qualquer ângulo pelo menu do botão direito.
+- Ctrl+C, Ctrl+X e Ctrl+V copiam, recortam e colam. "Usar a seleção como pincel" carimba com as cores dela.
 
-- **Seletor de cor próprio:** quadrado de cor, matiz, opacidade (nas cores do quadro), hex, conta-gotas da tela (quando o navegador tem) e as cores da paleta do quadro. Substitui o seletor nativo do navegador em todos os lugares.
-
-## v6: tela inicial, espaços de trabalho e compartilhamento
-- **Fundo do quadro acompanha o quadro:** o xadrez da transparência agora nasce no canto do próprio quadro e anda junto quando ele é movido.
-- **Tela inicial:** lista de espaços de trabalho (cada um é uma tela infinita), com miniatura, número de quadros e quando foi editado. Criar, abrir, renomear, duplicar, baixar como `.kixel`, excluir, abrir arquivo e entrar numa sala. O nome do espaço se edita no topo do editor; clicar no logo volta para a tela inicial. Tudo fica no navegador (IndexedDB) e o endereço (`#/w/...`) mantém o espaço aberto ao recarregar.
-- **Compartilhar em tempo real:** feito e testado, mas **retirado por enquanto** (fica para depois, com hospedagem própria). O código completo está em `_futuro-online/`.
-- Removido o botão "Em todos": cada quadro tem a sua paleta, e ao selecionar vários quadros (Ctrl+A para todos) trocar a paleta vale para todos os selecionados.
-
-## v7: ajustes de uso
-- O logo no topo da barra esquerda abre o menu do Kixel (como o do Figma): "Voltar para a tela inicial" em primeiro, depois novo espaço, abrir e baixar arquivo, importar .aseprite, desfazer, selecionar tudo, ver tudo e atalhos.
-- Removido o botão "Novo quadro" da barra esquerda (a ferramenta Quadro, tecla F, continua na barra de ferramentas). Tela vazia mostra uma dica com botão "Criar quadro".
-- Nomes de quadros e contêineres usam o menor número livre: apagar o "Quadro 1" e criar outro volta a ser "Quadro 1".
-- "Abrir arquivo .kixel" (Ctrl+O) agora cria um novo espaço de trabalho em vez de substituir o atual; "Baixar arquivo" usa o nome do espaço.
-
-## v8: controles, animação e Godot
-- **Barra do topo:** tamanho do pincel (1 a 32 px) e opacidade (1 a 100%) editáveis digitando ou rolando o mouse sobre o número (Shift muda de 1 em 1). Pixel perfect virou botão que liga e desliga. A opacidade vale para o lápis, a linha, as formas e o balde; na borracha, ela tira só uma parte da opacidade do que já existe.
-- **Opções da ferramenta (direita):** botões com ícone que ficam ativos ou inativos: Pixel perfect, Espelho, Sombra do frame anterior e Preencher formas. (O zoom já para sempre em tamanhos inteiros, então não há mais botão para isso.)
-- **Menu do logo:** clicar de novo no logo fecha o menu.
-- **Player de animação na tela:** clique com o botão direito em quadros selecionados e escolha "Criar animação com estes quadros", ou ligue "Player na tela" no painel de um contêiner. Uma janelinha ao lado do contêiner toca os quadros de dentro em loop, com play e pausa, passo a passo, velocidade de 0,25× a 4× e FPS. Jogar um quadro dentro do contêiner já o coloca na animação. A ordem é pela posição (de cima para baixo, da esquerda para a direita) e cada frame pode ter duração própria.
-- **Exportar para Godot:** gera `nome.png` (sprite sheet) e `nome.tres` (SpriteFrames do Godot 4, com a velocidade, o loop e a duração de cada frame). Coloque os dois na pasta do projeto (`res://`) e use o `.tres` em um `AnimatedSprite2D`. Para pixel art, deixe o filtro de textura do projeto em Nearest. Validado abrindo no Godot 4.7.
-
-## v9: animação à vista, painel da imagem e ajustes
-- **Animação mais fácil de achar:** ferramenta **Animação** na barra (tecla A, arraste sobre os quadros), botão de filme na lista de camadas e no painel do quadro (cria a animação com os quadros selecionados).
-- **Player:** sempre dentro da tela (nunca cortado) e com campo de FPS legível. O botão de alfinete no cabeçalho do player faz o sprite acompanhar o zoom do canvas (tamanho real), em vez de ter tamanho fixo na tela.
-- **Ordem dos frames:** miniaturas no player; clique para ir ao frame, arraste para mudar a ordem (entra no desfazer). "Ordem pela posição na tela" volta ao padrão. A ordem vale também para GIF, `.aseprite` e Godot.
-- **Painel da imagem de referência:** duas abas, "Imagem" (nome, opacidade, bloquear, na frente dos quadros, fixar, excluir) e "Usar no desenho" (calcar, reduzir para pixels, fatiar em quadros e extrair paleta, estes dois recolhíveis).
-- **Contêiner mais justo:** a margem e o espaço entre quadros agora são proporcionais ao tamanho dos quadros (3 a 8 unidades; antes eram sempre 12 e 8).
-- Abrir e baixar arquivo `.kixel` ficam só no menu do logo (e Ctrl+O, Ctrl+S).
-
-## v10: idiomas, velocidade e git
-- **Português, inglês e espanhol:** o idioma segue o do navegador e muda na hora pelo menu do logo (seção "Idioma") ou pelo seletor da tela inicial; a escolha fica guardada. O texto-fonte do código é o português; `src/i18n.ts` traduz na tela (textos, dicas e avisos) usando os dicionários `src/i18n/en.ts` e `src/i18n/es.ts`. Chaves com `{nome}` casam com trechos variáveis (números, nomes) e `{~nome}` também traduz o trecho. Nomes que você digita (quadros, camadas, espaços) nunca são traduzidos; os nomes padrão de itens novos (Quadro 1, Camada 1…) nascem no idioma em uso.
-- **Achar o que falta traduzir:** abra o app com `?probe=1` no endereço; cada texto sem tradução é gravado em `i18n-missing.log` (só no servidor de desenvolvimento).
-- **Player:** velocidade contínua de 0,1× a 10× (campo, rolagem do mouse, − e +), FPS até 120 e duração própria de cada frame.
-- **Git:** o projeto agora é um repositório; cada funcionalidade nova entra em um commit.
-- **Celular:** o player começa compacto (▾ mostra o resto); toque longo (550 ms) abre o menu do que está sob o dedo; as gavetas Camadas e Painel têm botão X. Em celular deitado a tela fica apertada e o player pode encostar na faixa de cores.
-
-## v11: transformar a seleção e novas opções de desenho
-- **Seleção de pixels:** 8 alças para esticar ou amassar (vizinho mais próximo, pixels nítidos). Shift mantém a proporção nos cantos e passar da borda oposta espelha. Shift+H e Shift+V espelham, Shift+R gira 90°, as setas movem 1 px (Shift: 8 px), Alt+arrastar leva uma cópia, Ctrl+A seleciona o quadro todo e Ctrl+D desmarca. O botão direito mostra tudo isso em um menu.
-- **Desenho:** espelho vertical (Y), pincel redondo e balde global (troca todos os pixels da mesma cor no quadro).
-
-## v12: laço, varinha mágica e tolerância
-- **Seleção por máscara:** além do retângulo, o laço (Q) contorna à mão e a varinha (W) pega pixels de cor parecida (Shift soma, Alt pega todos do quadro). Mover, esticar, girar e copiar respeitam o formato. Ctrl+Shift+I inverte. O modo fica na seção "Seleção" do painel.
-- **Tolerância:** controla o quanto uma cor pode diferir, na varinha e no balde.
-
-## v13: ferramentas de cor
-- **Sombra (D):** clareia ao pintar, Alt escurece (puxa sombras para o azul e luzes para o amarelo).
-- **Pontilhado:** 25%, 50% ou 75% em padrão fixo, vale para lápis, borracha e formas.
-- **Ajustar cores:** matiz, saturação e brilho, inverter cores e contorno automático, na seleção ou no quadro.
+### Cores
+- **Ajustar cores:** matiz, saturação e brilho, inverter e contorno automático, na seleção ou no quadro todo.
+- **Cores do quadro:** lista as cores usadas, com hex, opacidade e quantos pixels usam. Mudar uma troca em todos os pixels.
 - **Rampa:** gera 7 tons da cor atual e guarda em "Minha paleta".
+- **Seletor de cor próprio:** quadrado de cor, matiz, opacidade, hex, conta-gotas da tela (quando o navegador tem) e a paleta do quadro.
+- **Paletas:** cada quadro guarda a sua. Sweetie 16, Game Boy, Game Boy Pocket, NES, Master System, GBA, PICO-8, Commodore 64, ZX Spectrum, EGA, CGA e "Minha paleta". Dados em `src/data.ts`. Importa `.gpl`, `.hex`, `.pal` e `.txt`, e extrai a paleta de uma imagem ou do desenho (botão no painel Cor).
 
-## v14: tile, pincel da seleção e camadas
-- **Modo tile:** mostra o quadro repetido em volta e o desenho dá a volta pelas bordas, para texturas sem emenda.
-- **Pincel da seleção:** o botão direito na seleção tem "Usar a seleção como pincel"; o carimbo mantém as cores.
-- **Camadas:** mesclagem (multiplicar, tela, sobrepor, somar), gravada também no .aseprite e no projeto, e travar transparência.
+## Quadros, contêineres e camadas
+- **Árvore de camadas única (esquerda):** quadros, imagens de referência, notas e contêineres na mesma lista. Arraste para reordenar; solte no meio de um contêiner para colocar dentro. Olho oculta, cadeado trava, duplo clique renomeia. A ordem da lista decide quem aparece por cima.
+- **Quadros:** a ferramenta Quadro (F) abre uma lista de tamanhos (comuns, portáteis, consoles, computadores, ícones), aceita largura e altura livres ou arrastar na tela. Até 2048 × 2048. Alças nos 8 pontos redimensionam sem mexer nos pixels. Fundo sólido ou transparente (xadrez).
+- **Seleção múltipla:** Shift + clique, ou arrastar uma área vazia. Mover, duplicar, apagar, exportar e agrupar valem para todos. Alinhar, distribuir e linhas-guia que grudam (Ctrl desliga).
+- **Contêineres (S, ou Ctrl+G):** arrastar o contêiner move tudo dentro. Ctrl+Shift+G desagrupa.
+- **Camadas do quadro:** nova, duplicar, subir, descer, ocultar, renomear, opacidade, mesclar com a de baixo, modo de mesclagem (multiplicar, tela, sobrepor, somar) e travar transparência.
+- **Nomes:** quadros e contêineres usam o menor número livre.
+- **Referências e notas:** imagem de referência com opacidade, bloquear, mostrar na frente, "Calcar no quadro", "Reduzir para pixels", "Fixar na tela", fatiar em quadros. Nota (T): texto na tela, com cor e tamanho.
+- **Botão direito (estilo Figma):** menu do que está sob o cursor (quadro, contêiner, imagem, nota, tela vazia, seleção de pixels). Com lápis ou borracha sobre um quadro, continua apagando.
 
-## v15: sprite sheet, rotação livre e modos de reprodução
-- **Importar sprite sheet:** corta uma imagem em quadros do tamanho informado (ex.: 16x16), ignora células vazias e monta uma animação na ordem da folha. Importar .aseprite com vários frames também liga o player agora.
-- **Girar em ângulo:** no menu do botão direito da seleção, com vizinho mais próximo (pixels nítidos).
-- **Reprodução:** em sequência, vai e volta ou de trás para frente, no botão do player; o GIF segue o modo escolhido.
+## Animação
+- Um contêiner com 2 ou mais quadros do mesmo tamanho vira animação. Ferramenta Animação (A), botão de filme na lista ou "Criar animação com estes quadros" no menu.
+- **Player na tela:** play e pausa, passo a passo, velocidade contínua de 0,1× a 10×, FPS até 120, duração própria por frame, modos em sequência, vai e volta e de trás para frente. Sempre dentro da tela; o alfinete faz o sprite acompanhar o zoom.
+- **Ordem dos frames:** miniaturas no player (arraste para reordenar) e janela "Organizar" com seleção múltipla, arrastar em bloco, mover com `[` e `]`, ir ao início ou ao fim, inverter, voltar à ordem pela tela e duração em lote.
+- **Tags (ações):** grupos de frames como "andar" e "atacar" no mesmo contêiner, cada uma com o seu modo de reprodução. A tag escolhida é a que toca e vai para o GIF e o .aseprite.
+- **Onion skin:** 1 a 3 frames de cada lado (antes em vermelho, depois em azul), mais fracos quanto mais longe.
 
-## v16: tags de animação e organizador de frames
-- **Tags (ações):** cada contêiner pode ter grupos de frames como "andar" e "atacar". Os botões ficam no player e no painel do contêiner; a tag escolhida é a que toca, vira GIF e .aseprite. O Godot exporta uma animação por tag, mais a "default" com tudo.
-- **Organizar frames:** janela grande (botão no player, no painel ou no menu do contêiner) com seleção múltipla (Shift e Ctrl), arrastar em bloco, mover com `[` e `]`, levar ao início ou ao fim, inverter e voltar à ordem pela tela. Cada tag tem o próprio modo de reprodução (em sequência, vai e volta, ao contrário).
+## Arquivos
+- **Projeto (Ctrl+S / Ctrl+O):** arquivo `.kixel` com quadros, camadas, contêineres, imagens, notas, ordem, tags e paletas. Salva sozinho no navegador (IndexedDB).
+- **Exportar:** PNG (escala automática ou 1× a 16×, com ou sem fundo, copiar para a área de transferência), SVG, GIF animado, paleta `.gpl`, `.aseprite` (camadas, mesclagem, frames e tags) e sprite sheet PNG + JSON no formato do Aseprite, com espaço entre quadros, colunas e corte do espaço vazio.
+- **Godot:** gera `nome.png` e `nome.tres` (SpriteFrames do Godot 4, uma animação por tag mais a "default"). Coloque na pasta do projeto, use o `.tres` num `AnimatedSprite2D` e deixe o filtro de textura em Nearest.
+- **Importar:** `.aseprite` (camadas, opacidade, frames viram animação, tags) e sprite sheet em grade (corta em quadros do tamanho informado, pula células vazias e monta a animação).
 
-## v17: onion skin, duração em lote e tags no Aseprite
-- **Onion skin:** 1 a 3 frames de cada lado, os de antes em vermelho e os de depois (opcional) em azul, mais fracos quanto mais longe.
-- **Duração em lote:** no organizador, selecione frames e defina os milissegundos de todos de uma vez.
-- **Aseprite:** o .aseprite exporta todos os frames com as tags como tags do Aseprite (uma por trecho seguido) e a importação recria as tags.
-
-## v18: degradê, polígono, curva, sprite sheet e paleta do desenho
-- **Degradê (R):** arraste do começo ao fim, da cor atual até a cor final. Estilo pontilhado (Bayer 4x4) ou faixas de 5 tons, linear ou radial. Se houver seleção de pixels, só ela é preenchida.
-- **Polígono (P):** clique nos pontos; clicar no primeiro fecha, clicar no último (ou Enter) termina, Backspace tira o último ponto, Esc cancela. Aceita preenchimento.
-- **Curva (C):** clique no começo, no fim e onde ela deve entortar (Bézier).
-- **Sprite sheet:** espaço entre quadros e na borda, número de colunas e corte do espaço vazio (o JSON guarda o deslocamento original).
-- **Paleta do desenho:** botão no painel Cor que pega as cores mais usadas do quadro selecionado.
-
-## v19: ferramentas reunidas na barra
-- Ferramentas parecidas ficam num botão só, com uma seta que abre a lista (como no Figma). O botão mostra a última usada e o Kixel lembra a escolha.
-- **Formas:** retângulo, linha, elipse, polígono, curva. **Seleção:** retângulo, laço, varinha mágica. **Preenchimento:** balde, degradê. **Quadros:** quadro, contêiner, animação.
-- Os atalhos de teclado continuam os mesmos e o botão acompanha a ferramenta ativada.
+## Espaços de trabalho e idiomas
+- **Tela inicial:** lista de espaços de trabalho (cada um é uma tela infinita) com miniatura, número de quadros e data. Criar, abrir, renomear, duplicar, baixar como `.kixel` e excluir. O endereço (`#/w/...`) mantém o espaço aberto. Tudo fica no navegador. O logo abre o menu do Kixel e leva de volta à tela inicial.
+- **Compartilhar em tempo real:** feito e testado, mas retirado por enquanto (fica para depois, com hospedagem própria). O código completo está em `_futuro-online/`.
+- **Português, inglês e espanhol:** o idioma segue o do navegador e muda na hora pelo menu do logo ou pela tela inicial. O texto-fonte do código é o português; `src/i18n.ts` traduz na tela usando `src/i18n/en.ts` e `src/i18n/es.ts`. Chaves com `{nome}` casam com trechos variáveis. Para achar o que falta traduzir, abra o app com `?probe=1`: cada texto sem tradução é gravado em `i18n-missing.log` (só no servidor de desenvolvimento).
 
 ## Interface
-Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
+Layout de estúdio: árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout de ilhas: paleta e ferramentas embaixo, painéis em gavetas (botões "Camadas" e "Painel"). No celular, o player começa compacto (▾ mostra o resto) e o toque longo abre o menu do que está sob o dedo. O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 
-## Identidade e interface
-Visual limpo, cantos suaves e cinzas frios, com destaque verde-menta `#4de3b5`. Fonte Geist (texto) e Geist Mono (números), ícones Lucide. Sem fonte pixel.
-
-Logo em `public/`: `mark.svg` (ícone), `logo.svg` e `logo-dark.svg` (ícone + nome), `wordmark.svg` e `wordmark-dark.svg`. O nome é desenhado a partir da Geist Bold, com um quadradinho (o "pixel") no lugar do pingo do i.
-
-## Quadros e paletas
-- **Ferramenta Quadro (F):** abre uma lista de tamanhos, como a ferramenta Frame do Figma: tamanhos comuns (8 a 128), portáteis (Game Boy, GBA, DS...), consoles de mesa, computadores e ícones. Também aceita largura e altura livres, ou arrastar na tela. Clique sem arrastar cria o último tamanho usado.
-- **Quadros grandes:** acima de 64 px o quadro ganha textura própria (até 2048 × 2048).
-- **Paletas:** Sweetie 16, Game Boy, Game Boy Pocket, NES (54), Master System (64), GBA, PICO-8, Commodore 64, ZX Spectrum, EGA, CGA e "Minha paleta" (guarda cores, Shift + clique remove). Os dados ficam em `src/data.ts`.
+Visual limpo, cantos suaves e cinzas frios, com destaque verde-menta `#4de3b5`. Fonte Geist (texto) e Geist Mono (números), ícones Lucide. Logo em `public/`: `mark.svg` (ícone), `logo.svg` e `logo-dark.svg` (ícone + nome), `wordmark.svg` e `wordmark-dark.svg`.
 
 ## Como é por dentro
 - Núcleo em TypeScript puro (`doc.ts`): quadros, atlas, índice espacial, histórico.
 - Renderização em WebGL2 (`gl.ts`): os quadros de uma página saem em **uma** chamada de desenho; contorno e xadrez no shader.
 - Desfazer por diferença: guarda só a área alterada de cada traço.
 - Quadros vivem em páginas de atlas 2048×2048 por classe de tamanho (16, 32, 64).
-- Limite do protótipo: quadros de até 64×64. O produto usaria blocos (tiles) para quadros maiores.
+- Testes de navegador (Playwright) em `tools/e2e/`; `tools/mapa.sh` mostra um índice do código com números de linha.
