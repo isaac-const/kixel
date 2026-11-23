@@ -1,0 +1,11 @@
+#!/bin/sh
+# Valida a mensagem no padrão Conventional Commits: tipo(escopo opcional): descrição
+# Ative com: git config core.hooksPath .githooks
+msg=$(head -n1 "$1")
+case "$msg" in Merge\ *|Revert\ *|fixup!*|squash!*) exit 0 ;; esac
+if ! printf '%s' "$msg" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'; then
+  echo "Mensagem fora do padrão. Use: tipo(escopo): descrição" >&2
+  echo "Tipos: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert" >&2; exit 1
+fi
+if [ "$(printf '%s' "$msg" | wc -m)" -gt 72 ]; then echo "A primeira linha passa de 72 caracteres." >&2; exit 1; fi
+if grep -q '—' "$1"; then echo "Sem travessão (—) na mensagem." >&2; exit 1; fi

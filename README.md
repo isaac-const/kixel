@@ -2,7 +2,7 @@
 
 Editor de pixel art em tela infinita: vários quadros, contêineres, camadas, referências, notas, animação com player, exportação (PNG, .aseprite, sprite sheet, SVG, GIF, Godot), espaços de trabalho e tradução em português, inglês e espanhol. Feito com TypeScript, WebGL2 e Vite.
 
-O histórico de mudanças está nos commits (`git log`).
+As mudanças por versão estão no [CHANGELOG](CHANGELOG.md). Os commits seguem o padrão Conventional Commits (`feat`, `fix`, `docs`...) e o hook em `.githooks/` confere o formato: ative com `git config core.hooksPath .githooks`.
 
 ## Como rodar
 ```bash
