@@ -665,4 +665,11 @@ export const ES: Record<string, string> = {
   "Junta os quadros selecionados numa imagem só e gera um JSON com as posições (formato do Aseprite, aceito em Godot, Phaser e outros). Dá para deixar espaço entre eles e cortar o vazio.": "Une los cuadros seleccionados en una sola imagen y genera un JSON con las posiciones (formato de Aseprite, aceptado en Godot, Phaser y otros). Puedes dejar espacio entre ellos y recortar lo vacío.",
   "Clique para marcar os pontos. Clique no primeiro ponto para fechar, no último (ou Enter) para terminar, Esc cancela.": "Haz clic para marcar puntos. Clic en el primero para cerrar, en el último (o Enter) para terminar, Esc cancela.",
   "Clique no ponto final e depois onde a curva deve entortar.": "Haz clic en el punto final y luego donde la curva debe curvarse.",
+  "Formas: mais ferramentas": "Formas: más herramientas",
+  "Seleção: mais ferramentas": "Selección: más herramientas",
+  "Preenchimento: mais ferramentas": "Relleno: más herramientas",
+  "Quadros: mais ferramentas": "Cuadros: más herramientas",
+  "Varinha mágica": "Varita mágica",
+  "Laço: arraste para contornar à mão": "Lazo: arrastra para contornar a mano",
+  "Varinha mágica: clique numa cor para selecionar os parecidos": "Varita mágica: haz clic en un color para seleccionar los parecidos",
 }

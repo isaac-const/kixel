@@ -414,3 +414,15 @@ details.acc>summary{min-height:38px}details.acc>summary span[data-icon]{display:
 #tl .tldur{display:inline-flex;gap:4px;align-items:center}#tl .tldur input{width:64px;background:var(--sunk);border:1px solid var(--line);color:var(--ink);border-radius:8px;height:32px;padding:0 8px;font:500 12px var(--f-ui)}
 #onionopts[hidden]{display:none}#onionopts>*{min-width:0}#onionopts .f{margin:0}
 #onionopts .f{display:flex;gap:6px;align-items:center;padding:0 8px}#onionopts .f select{flex:1;min-width:40px}
+
+.tgroup{display:flex;align-items:center;flex:none}
+#tools .tgroup>button:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
+#tools button.tcaret{width:16px;height:44px;border-radius:0 10px 10px 0;color:#8f95a8}
+#tools button.tcaret svg{width:12px;height:12px}
+#tools .tgroup:has(button.on) .tcaret{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--acc)}
+.toolmenu{position:fixed;z-index:30;min-width:210px;display:flex;flex-direction:column;gap:2px;padding:6px;background:#101116;border:1px solid var(--line);border-radius:12px;box-shadow:0 14px 40px #000a}
+.toolmenu button{display:flex;align-items:center;gap:10px;width:100%;height:36px;padding:0 10px 0 6px;border:0;background:none;border-radius:8px;color:#d6dae6;text-align:left}
+.toolmenu button:hover{background:#ffffff14}
+.toolmenu .ck{width:16px;display:inline-flex}.toolmenu svg{width:16px;height:16px}
+.toolmenu .lb{flex:1}.toolmenu kbd{color:#6f7589;font-size:11px}
+@media (max-width:900px){#tools button.tcaret{height:42px}}

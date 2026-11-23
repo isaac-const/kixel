@@ -17,8 +17,8 @@ export type UI = {
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 const TOOLS: [string, string, string, string][] = [
   ['select', 'Selecionar', 'V', 'Selecionar e mover'], ['hand', 'Mão', 'H', 'Mão: mover a tela (ou segure Espaço)'], ['-', '', '', ''],
-  ['pencil', 'Lápis', 'B', 'Lápis'], ['eraser', 'Borracha', 'E', 'Borracha'], ['shade', 'Sombra', 'D', 'Sombra: clareia ou escurece o que já está pintado (Alt inverte)'], ['fill', 'Balde', 'G', 'Balde de tinta'], ['picker', 'Conta-gotas', 'I', 'Conta-gotas'], ['-', '', '', ''],
-  ['line', 'Linha', 'L', 'Linha (Shift trava o ângulo)'], ['rect', 'Retângulo', 'U', 'Retângulo (Shift faz quadrado)'], ['ellipse', 'Elipse', 'O', 'Elipse (Shift faz círculo)'], ['poly', 'Polígono', 'P', 'Polígono: clique nos pontos e feche clicando no primeiro (Enter termina, Esc cancela)'], ['curve', 'Curva', 'C', 'Curva: clique no começo, no fim e onde ela deve entortar'], ['gradient', 'Degradê', 'R', 'Degradê pontilhado: arraste do começo ao fim'], ['marquee', 'Seleção', 'M', 'Seleção de pixels: arraste para selecionar e mover'], ['-', '', '', ''],
+  ['pencil', 'Lápis', 'B', 'Lápis'], ['eraser', 'Borracha', 'E', 'Borracha'], ['shade', 'Sombra', 'D', 'Sombra: clareia ou escurece o que já está pintado (Alt inverte)'], ['fill', 'Balde', 'G', 'Balde de tinta'], ['gradient', 'Degradê', 'R', 'Degradê pontilhado: arraste do começo ao fim'], ['picker', 'Conta-gotas', 'I', 'Conta-gotas'], ['-', '', '', ''],
+  ['line', 'Linha', 'L', 'Linha (Shift trava o ângulo)'], ['rect', 'Retângulo', 'U', 'Retângulo (Shift faz quadrado)'], ['ellipse', 'Elipse', 'O', 'Elipse (Shift faz círculo)'], ['poly', 'Polígono', 'P', 'Polígono: clique nos pontos e feche clicando no primeiro (Enter termina, Esc cancela)'], ['curve', 'Curva', 'C', 'Curva: clique no começo, no fim e onde ela deve entortar'], ['marquee', 'Seleção', 'M', 'Seleção de pixels: arraste para selecionar e mover'], ['-', '', '', ''],
   ['frame', 'Quadro', 'F', 'Quadro: escolha um tamanho ou arraste na tela'], ['container', 'Contêiner', 'S', 'Contêiner: agrupa quadros'], ['anim', 'Animação', 'A', 'Animação: arraste sobre os quadros para criar um player que toca em loop'], ['note', 'Nota', 'T', 'Nota: clique na tela para escrever um comentário']
 ]
 const DRAW = ['pencil', 'eraser', 'shade', 'fill', 'picker', 'line', 'rect', 'ellipse', 'poly', 'curve', 'gradient']
@@ -45,9 +45,58 @@ export function initUI(c: any): UI {
 
   // ------------------------------------------------------------ ferramentas
   const tb = $('tools')
-  for (const [id, , key, title] of TOOLS) { if (id === '-') { const sp = document.createElement('span'); sp.className = 'tsep'; tb.appendChild(sp); continue } const b = document.createElement('button'); b.dataset.tool = id; b.innerHTML = icon(id) + `<kbd translate="no">${key}</kbd>`; b.title = `${title} (${key})`; b.setAttribute('aria-label', title); b.onclick = () => core.setTool(id); tb.appendChild(b) }
+  // ferramentas parecidas reunidas num botão só: mostra a última usada e uma seta abre a lista (como no Figma)
+  const EXTRA: Record<string, [string, string, string, string]> = {
+    lasso: ['lasso', 'Laço', 'Q', 'Laço: arraste para contornar à mão'], wand: ['wandsp', 'Varinha mágica', 'W', 'Varinha mágica: clique numa cor para selecionar os parecidos']
+  }
+  const GROUPS: { key: string; label: string; members: string[] }[] = [
+    { key: 'shapes', label: 'Formas', members: ['rect', 'line', 'ellipse', 'poly', 'curve'] },
+    { key: 'sel', label: 'Seleção', members: ['marquee', 'lasso', 'wand'] },
+    { key: 'paint', label: 'Preenchimento', members: ['fill', 'gradient'] },
+    { key: 'frames', label: 'Quadros', members: ['frame', 'container', 'anim'] }
+  ]
+  const info = (id: string) => { const x = EXTRA[id]; if (x) return { icon: x[0], label: x[1], key: x[2], title: x[3] }; const d = TOOLS.find(q => q[0] === id)!; return { icon: id, label: d[1], key: d[2], title: d[3] } }
+  const realTool = (id: string) => (EXTRA[id] ? 'marquee' : id)
+  const groupOf = (id: string) => GROUPS.find(g => g.members.includes(id))
+  const last: Record<string, string> = {}, gbtn: Record<string, HTMLButtonElement> = {}
+  for (const g of GROUPS) { const v = store.get('kixel-grp-' + g.key); last[g.key] = g.members.includes(v || '') && g.key !== 'sel' ? v as string : g.members[0] }
+  const activate = (id: string) => { if (EXTRA[id] || id === 'marquee') { S.selMode = id === 'lasso' ? 'lasso' : id === 'wand' ? 'wand' : 'rect' } core.setTool(realTool(id)); if (id === 'marquee' || EXTRA[id]) ctxSync() }
+  const paintGroup = (g: (typeof GROUPS)[number]) => { const b = gbtn[g.key], i = info(last[g.key]); if (!b) return; b.dataset.tool = realTool(last[g.key]); b.innerHTML = icon(i.icon) + `<kbd translate="no">${i.key}</kbd>`; b.title = `${i.title} (${i.key})`; b.setAttribute('aria-label', i.label) }
+  let gMenu: HTMLDivElement | null = null
+  const gClose = () => { gMenu?.remove(); gMenu = null; document.removeEventListener('pointerdown', gOutside, true) }
+  function gOutside(e: Event) { if (!(e.target as HTMLElement).closest('.toolmenu, .tcaret')) gClose() }
+  function gShow(g: (typeof GROUPS)[number], caret: HTMLElement) {
+    const was = gMenu?.dataset.g; gClose(); if (was === g.key) return
+    const m = document.createElement('div'); m.className = 'toolmenu'; m.dataset.g = g.key; m.setAttribute('role', 'menu')
+    for (const id of g.members) {
+      const i = info(id), b = document.createElement('button'); b.setAttribute('role', 'menuitem')
+      b.innerHTML = `<span class="ck">${id === last[g.key] ? icon('check') : ''}</span>${icon(i.icon)}<span class="lb">${i.label}</span><kbd translate="no">${i.key}</kbd>`
+      b.onclick = () => { gClose(); activate(id) }; m.appendChild(b)
+    }
+    document.body.appendChild(m)
+    const r = caret.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight
+    m.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px'; m.style.top = Math.max(8, r.top - h - 10) + 'px'
+    gMenu = m; document.addEventListener('pointerdown', gOutside, true)
+  }
+  const groupsSync = (t: string) => {
+    for (const g of GROUPS) {
+      const m = g.key === 'sel' ? (t === 'marquee' ? (S.selMode === 'lasso' ? 'lasso' : S.selMode === 'wand' ? 'wand' : 'marquee') : null) : g.members.includes(t) ? t : null
+      if (m && m !== last[g.key]) { last[g.key] = m; if (g.key !== 'sel') store.set('kixel-grp-' + g.key, m); paintGroup(g) }
+    }
+  }
+  for (const [id, , key, title] of TOOLS) {
+    const grp = groupOf(id)
+    if (grp) {
+      if (gbtn[grp.key]) continue
+      const el = document.createElement('div'); el.className = 'tgroup'
+      const main = document.createElement('button'); gbtn[grp.key] = main; main.onclick = () => activate(last[grp.key]); paintGroup(grp)
+      const car = document.createElement('button'); car.className = 'tcaret'; car.innerHTML = icon('chev'); car.title = grp.label + ': mais ferramentas'; car.setAttribute('aria-label', grp.label + ': mais ferramentas'); car.setAttribute('aria-haspopup', 'menu'); car.onclick = () => gShow(grp, car)
+      el.append(main, car); tb.appendChild(el); continue
+    }
+    if (id === '-') { const sp = document.createElement('span'); sp.className = 'tsep'; tb.appendChild(sp); continue } const b = document.createElement('button'); b.dataset.tool = id; b.innerHTML = icon(id) + `<kbd translate="no">${key}</kbd>`; b.title = `${title} (${key})`; b.setAttribute('aria-label', title); b.onclick = () => core.setTool(id); tb.appendChild(b) }
   const toolCursor = (t: string) => (t === 'hand' ? 'grab' : ['pencil', 'eraser', 'shade', 'fill', 'picker', 'frame', 'container', 'anim', 'note', 'line', 'rect', 'ellipse', 'poly', 'curve', 'gradient', 'marquee'].includes(t) ? 'crosshair' : 'default')
   function toolChanged(t: string) {
+    groupsSync(t); gClose()
     show('fillrow', t === 'rect' || t === 'ellipse' || t === 'poly'); show('onionrow', DRAW.includes(t)); show('tolrow', t === 'fill'); ctxSync()
     for (const b of tb.querySelectorAll('button')) b.classList.toggle('on', (b as HTMLElement).dataset.tool === t)
     const d = TOOLS.find(x => x[0] === t); if (d) $('ctool').innerHTML = icon(t) + `<span>${d[1]}</span>`
@@ -138,7 +187,7 @@ export function initUI(c: any): UI {
     for (const r of document.querySelectorAll<HTMLInputElement>('input.tol')) r.value = String(S.tol)
     for (const v of document.querySelectorAll<HTMLElement>('.tolv')) v.textContent = S.tol + '%'
     $('selhint').textContent = S.selMode === 'wand' ? 'Clique numa cor para selecionar os pixels parecidos que se tocam. Shift soma, Alt pega todos do quadro.' : S.selMode === 'lasso' ? 'Arraste para contornar à mão. Shift soma à seleção.' : 'Arraste para selecionar um retângulo.'
-    show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill'); show('shaderow', S.tool === 'shade'); show('gradrow', S.tool === 'gradient'); { const gm = $<HTMLSelectElement>('gradmode'), gk = $<HTMLSelectElement>('gradkind'); gm.value = S.gradMode; gk.value = S.gradKind; if (document.activeElement !== $('gradc')) val('gradc').value = hexOf(S.color2) }
+    groupsSync(S.tool); show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill'); show('shaderow', S.tool === 'shade'); show('gradrow', S.tool === 'gradient'); { const gm = $<HTMLSelectElement>('gradmode'), gk = $<HTMLSelectElement>('gradkind'); gm.value = S.gradMode; gk.value = S.gradKind; if (document.activeElement !== $('gradc')) val('gradc').value = hexOf(S.color2) }
     for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.classList.toggle('on', b.dataset.shade === S.shade)
     show('brushimgrow', !!S.brushImg); show('onionopts', !!S.opt.onion && DRAW.includes(S.tool)); { const on = $<HTMLSelectElement>('onionn'); if (on) on.value = String(S.onionN) }
     const dsel = $<HTMLSelectElement>('dither'); if (dsel) dsel.value = String(S.dither)

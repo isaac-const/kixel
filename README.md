@@ -141,6 +141,11 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 - **Sprite sheet:** espaço entre quadros e na borda, número de colunas e corte do espaço vazio (o JSON guarda o deslocamento original).
 - **Paleta do desenho:** botão no painel Cor que pega as cores mais usadas do quadro selecionado.
 
+## v19: ferramentas reunidas na barra
+- Ferramentas parecidas ficam num botão só, com uma seta que abre a lista (como no Figma). O botão mostra a última usada e o Kixel lembra a escolha.
+- **Formas:** retângulo, linha, elipse, polígono, curva. **Seleção:** retângulo, laço, varinha mágica. **Preenchimento:** balde, degradê. **Quadros:** quadro, contêiner, animação.
+- Os atalhos de teclado continuam os mesmos e o botão acompanha a ferramenta ativada.
+
 ## Interface
 Layout A (estúdio): árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout D (ilhas): paleta e ferramentas embaixo, painéis em gavetas (botões "Quadros" e "Painel"). O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 
