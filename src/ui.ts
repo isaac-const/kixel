@@ -18,12 +18,12 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 const TOOLS: [string, string, string, string][] = [
   ['select', 'Selecionar', 'V', 'Selecionar e mover'], ['hand', 'Mão', 'H', 'Mão: mover a tela (ou segure Espaço)'], ['-', '', '', ''],
   ['pencil', 'Lápis', 'B', 'Lápis'], ['eraser', 'Borracha', 'E', 'Borracha'], ['shade', 'Sombra', 'D', 'Sombra: clareia ou escurece o que já está pintado (Alt inverte)'], ['fill', 'Balde', 'G', 'Balde de tinta'], ['picker', 'Conta-gotas', 'I', 'Conta-gotas'], ['-', '', '', ''],
-  ['line', 'Linha', 'L', 'Linha (Shift trava o ângulo)'], ['rect', 'Retângulo', 'U', 'Retângulo (Shift faz quadrado)'], ['ellipse', 'Elipse', 'O', 'Elipse (Shift faz círculo)'], ['marquee', 'Seleção', 'M', 'Seleção de pixels: arraste para selecionar e mover'], ['-', '', '', ''],
+  ['line', 'Linha', 'L', 'Linha (Shift trava o ângulo)'], ['rect', 'Retângulo', 'U', 'Retângulo (Shift faz quadrado)'], ['ellipse', 'Elipse', 'O', 'Elipse (Shift faz círculo)'], ['poly', 'Polígono', 'P', 'Polígono: clique nos pontos e feche clicando no primeiro (Enter termina, Esc cancela)'], ['curve', 'Curva', 'C', 'Curva: clique no começo, no fim e onde ela deve entortar'], ['gradient', 'Degradê', 'R', 'Degradê pontilhado: arraste do começo ao fim'], ['marquee', 'Seleção', 'M', 'Seleção de pixels: arraste para selecionar e mover'], ['-', '', '', ''],
   ['frame', 'Quadro', 'F', 'Quadro: escolha um tamanho ou arraste na tela'], ['container', 'Contêiner', 'S', 'Contêiner: agrupa quadros'], ['anim', 'Animação', 'A', 'Animação: arraste sobre os quadros para criar um player que toca em loop'], ['note', 'Nota', 'T', 'Nota: clique na tela para escrever um comentário']
 ]
-const DRAW = ['pencil', 'eraser', 'shade', 'fill', 'picker', 'line', 'rect', 'ellipse']
+const DRAW = ['pencil', 'eraser', 'shade', 'fill', 'picker', 'line', 'rect', 'ellipse', 'poly', 'curve', 'gradient']
 const HELP: [string, [string, string][]][] = [
-  ['Ferramentas', [['Selecionar', 'V'], ['Mão (ou segure Espaço)', 'H'], ['Lápis', 'B'], ['Borracha', 'E'], ['Balde', 'G'], ['Conta-gotas', 'I'], ['Linha', 'L'], ['Retângulo', 'U'], ['Elipse', 'O'], ['Seleção de pixels', 'M'], ['Laço', 'Q'], ['Varinha mágica', 'W'], ['Quadro', 'F'], ['Contêiner', 'S'], ['Animação', 'A'], ['Nota', 'T']]],
+  ['Ferramentas', [['Selecionar', 'V'], ['Mão (ou segure Espaço)', 'H'], ['Lápis', 'B'], ['Borracha', 'E'], ['Balde', 'G'], ['Conta-gotas', 'I'], ['Linha', 'L'], ['Retângulo', 'U'], ['Elipse', 'O'], ['Polígono', 'P'], ['Curva', 'C'], ['Degradê', 'R'], ['Seleção de pixels', 'M'], ['Laço', 'Q'], ['Varinha mágica', 'W'], ['Quadro', 'F'], ['Contêiner', 'S'], ['Animação', 'A'], ['Nota', 'T']]],
   ['Desenho', [['Pincel menor / maior', '[  ]'], ['Espelho horizontal', 'X'], ['Espelho vertical', 'Y'], ['Cor da paleta', '1 a 0'], ['Travar ângulo, quadrado, círculo', 'Shift'], ['Apagar com o botão direito', 'Lápis / Borracha']]],
   ['Quadros e seleção', [['Selecionar vários', 'Shift + clique'], ['Selecionar tudo', 'Ctrl+A'], ['Agrupar em contêiner', 'Ctrl+G'], ['Desagrupar', 'Ctrl+Shift+G'], ['Duplicar', 'Ctrl+D'], ['Copiar / Colar', 'Ctrl+C / V'], ['Renomear', 'F2'], ['Excluir', 'Delete'], ['Mover 1 pixel', 'Setas'], ['Sem grudar nas guias', 'Ctrl ao arrastar']]],
   ['Cores',[['Sombra: clarear / escurecer','D / Alt'],['Pontilhado','Painel Ferramenta'],['Contorno, ajustar cores','Painel Cor']]],
@@ -46,9 +46,9 @@ export function initUI(c: any): UI {
   // ------------------------------------------------------------ ferramentas
   const tb = $('tools')
   for (const [id, , key, title] of TOOLS) { if (id === '-') { const sp = document.createElement('span'); sp.className = 'tsep'; tb.appendChild(sp); continue } const b = document.createElement('button'); b.dataset.tool = id; b.innerHTML = icon(id) + `<kbd translate="no">${key}</kbd>`; b.title = `${title} (${key})`; b.setAttribute('aria-label', title); b.onclick = () => core.setTool(id); tb.appendChild(b) }
-  const toolCursor = (t: string) => (t === 'hand' ? 'grab' : ['pencil', 'eraser', 'shade', 'fill', 'picker', 'frame', 'container', 'anim', 'note', 'line', 'rect', 'ellipse', 'marquee'].includes(t) ? 'crosshair' : 'default')
+  const toolCursor = (t: string) => (t === 'hand' ? 'grab' : ['pencil', 'eraser', 'shade', 'fill', 'picker', 'frame', 'container', 'anim', 'note', 'line', 'rect', 'ellipse', 'poly', 'curve', 'gradient', 'marquee'].includes(t) ? 'crosshair' : 'default')
   function toolChanged(t: string) {
-    show('fillrow', t === 'rect' || t === 'ellipse'); show('onionrow', DRAW.includes(t)); show('tolrow', t === 'fill'); ctxSync()
+    show('fillrow', t === 'rect' || t === 'ellipse' || t === 'poly'); show('onionrow', DRAW.includes(t)); show('tolrow', t === 'fill'); ctxSync()
     for (const b of tb.querySelectorAll('button')) b.classList.toggle('on', (b as HTMLElement).dataset.tool === t)
     const d = TOOLS.find(x => x[0] === t); if (d) $('ctool').innerHTML = icon(t) + `<span>${d[1]}</span>`
     show('presets', t === 'frame'); show('props', t !== 'frame')
@@ -138,13 +138,17 @@ export function initUI(c: any): UI {
     for (const r of document.querySelectorAll<HTMLInputElement>('input.tol')) r.value = String(S.tol)
     for (const v of document.querySelectorAll<HTMLElement>('.tolv')) v.textContent = S.tol + '%'
     $('selhint').textContent = S.selMode === 'wand' ? 'Clique numa cor para selecionar os pixels parecidos que se tocam. Shift soma, Alt pega todos do quadro.' : S.selMode === 'lasso' ? 'Arraste para contornar à mão. Shift soma à seleção.' : 'Arraste para selecionar um retângulo.'
-    show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill'); show('shaderow', S.tool === 'shade')
+    show('tolrow2', S.selMode === 'wand'); show('tolrow', S.tool === 'fill'); show('shaderow', S.tool === 'shade'); show('gradrow', S.tool === 'gradient'); { const gm = $<HTMLSelectElement>('gradmode'), gk = $<HTMLSelectElement>('gradkind'); gm.value = S.gradMode; gk.value = S.gradKind; if (document.activeElement !== $('gradc')) val('gradc').value = hexOf(S.color2) }
     for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.classList.toggle('on', b.dataset.shade === S.shade)
     show('brushimgrow', !!S.brushImg); show('onionopts', !!S.opt.onion && DRAW.includes(S.tool)); { const on = $<HTMLSelectElement>('onionn'); if (on) on.value = String(S.onionN) }
     const dsel = $<HTMLSelectElement>('dither'); if (dsel) dsel.value = String(S.dither)
   }
   for (const b of document.querySelectorAll<HTMLElement>('#shademode [data-shade]')) b.onclick = () => { S.shade = b.dataset.shade; ctxSync() }
   $<HTMLSelectElement>('onionn').onchange = e => { S.onionN = Number((e.target as HTMLSelectElement).value); core.invalidate() }
+  $<HTMLSelectElement>('gradmode').onchange = e => { S.gradMode = (e.target as HTMLSelectElement).value }
+  $<HTMLSelectElement>('gradkind').onchange = e => { S.gradKind = (e.target as HTMLSelectElement).value }
+  val('gradc').oninput = e => { S.color2 = hex2rgba((e.target as HTMLInputElement).value) }
+  $('palframe').onclick = () => { core.extractFramePalette(Number(val('xn').value) || 16); palKey = '' }
   $<HTMLSelectElement>('dither').onchange = e => { S.dither = Number((e.target as HTMLSelectElement).value) }
   $<HTMLSelectElement>('lblend').onchange = e => { const f = single(); if (f) core.layerSetProp(f, 'blend', (e.target as HTMLSelectElement).value); layKey = ''; panels(true) }
   $('llock').onclick = () => { const f = single(); const act = f?.layers?.find((q: any) => q.id === f.activeLayer); if (f) core.layerSetProp(f, 'lock', !act?.lock); layKey = ''; panels(true) }
@@ -239,7 +243,7 @@ export function initUI(c: any): UI {
   }
 
   // ------------------------------------------------------------ exportar
-  $('export').onclick = () => void core.exportAs(val('efmt').value, val('escale').value, val('ebg').checked, val('eanim').checked)
+  $('export').onclick = () => void core.exportAs(val('efmt').value, val('escale').value, val('ebg').checked, val('eanim').checked, { pad: Math.max(0, Math.min(64, Number(val('spad').value) || 0)), cols: Math.max(0, Math.min(64, Number(val('scols').value) || 0)), trim: val('strim').checked })
   $('ecopy').onclick = () => void core.copyPng(val('escale').value, val('ebg').checked)
   val('escale').onchange = () => panels(true); val('efmt').onchange = () => panels(true)
 
@@ -642,9 +646,9 @@ export function initUI(c: any): UI {
     }
     // exportar: opções conforme o formato
     if (nF || true) {
-      const fmt = val('efmt').value, notes: Record<string, string> = { png: 'Imagem comum, ampliada na escala escolhida, sem suavizar.', ase: 'Abre no Aseprite com as camadas do quadro. Vários quadros do mesmo tamanho podem virar uma animação.', sheet: 'Junta os quadros selecionados numa imagem só e gera um JSON com as posições (formato do Aseprite, aceito em Godot, Phaser e outros).', svg: 'Imagem vetorial: cada pixel vira um retângulo. Pode ser ampliada sem perder nitidez.', gpl: 'Paleta do quadro em .gpl (Aseprite, GIMP, Krita). Não precisa de quadro selecionado.' }
+      const fmt = val('efmt').value, notes: Record<string, string> = { png: 'Imagem comum, ampliada na escala escolhida, sem suavizar.', ase: 'Abre no Aseprite com as camadas do quadro. Vários quadros do mesmo tamanho podem virar uma animação.', sheet: 'Junta os quadros selecionados numa imagem só e gera um JSON com as posições (formato do Aseprite, aceito em Godot, Phaser e outros). Dá para deixar espaço entre eles e cortar o vazio.', svg: 'Imagem vetorial: cada pixel vira um retângulo. Pode ser ampliada sem perder nitidez.', gpl: 'Paleta do quadro em .gpl (Aseprite, GIMP, Krita). Não precisa de quadro selecionado.' }
       $('efmtnote').textContent = notes[fmt]
-      show('escalerow', fmt === 'png' || fmt === 'svg'); show('ebgrow', fmt !== 'gpl' && fmt !== 'ase'); show('eanimrow', false)
+      show('sheetopts', fmt === 'sheet'); show('escalerow', fmt === 'png' || fmt === 'svg'); show('ebgrow', fmt !== 'gpl' && fmt !== 'ase'); show('eanimrow', false)
       show('eanimrow', fmt === 'ase' && nF > 1); $('ecopy').hidden = nF !== 1 || fmt !== 'png'
       if (fmt === 'ase') { show('ebgrow', nF > 1) ; for (const l of $('ebgrow').querySelectorAll('label')) (l as HTMLElement).hidden = l.id !== 'eanimrow' }
       else for (const l of $('ebgrow').querySelectorAll('label')) (l as HTMLElement).hidden = l.id === 'eanimrow'

@@ -21,3 +21,33 @@ export function ellipse(x0: number, y0: number, x1: number, y1: number, filled: 
     if (filled || !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) put(x, y)
   }
 }
+
+/** Curva de Bézier quadrática (dois pontos e um de controle), traçada em segmentos de reta ligados. */
+export function curve(x0: number, y0: number, cx: number, cy: number, x1: number, y1: number, put: Put) {
+  const n = Math.max(2, Math.ceil((Math.hypot(cx - x0, cy - y0) + Math.hypot(x1 - cx, y1 - cy)) * 1.5))
+  let px = x0, py = y0
+  for (let i = 1; i <= n; i++) {
+    const t = i / n, u = 1 - t, x = Math.round(u * u * x0 + 2 * u * t * cx + t * t * x1), y = Math.round(u * u * y0 + 2 * u * t * cy + t * t * y1)
+    line(px, py, x, y, put); px = x; py = y
+  }
+}
+
+/** Polígono por pontos. Fechado liga o último ao primeiro; preenchido usa a regra par-ímpar linha a linha. */
+export function polygon(pts: { x: number; y: number }[], closed: boolean, filled: boolean, put: Put) {
+  if (!pts.length) return
+  if (filled && pts.length >= 3) {
+    const ys = pts.map(p => p.y), top = Math.min(...ys), bot = Math.max(...ys)
+    for (let y = top; y <= bot; y++) {
+      const xs: number[] = []
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length]
+        if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) xs.push(a.x + ((y - a.y) / (b.y - a.y)) * (b.x - a.x))
+      }
+      xs.sort((p, q) => p - q)
+      for (let k = 0; k + 1 < xs.length; k += 2) for (let x = Math.round(xs[k]); x <= Math.round(xs[k + 1]); x++) put(x, y)
+    }
+  }
+  for (let i = 0; i + 1 < pts.length; i++) line(pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y, put)
+  if (closed && pts.length > 2) line(pts[pts.length - 1].x, pts[pts.length - 1].y, pts[0].x, pts[0].y, put)
+  if (pts.length === 1) put(pts[0].x, pts[0].y)
+}

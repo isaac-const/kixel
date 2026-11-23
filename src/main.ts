@@ -28,7 +28,7 @@ const S = {
   color: hex2rgba(PALETTE[3]), tool: 'pencil', brush: 1,
   sel: null as Frame | null, selRef: null as Ref | null, selCont: null as Cont | null, selNote: null as Note | null,
   lastSel: null as Frame | null, hover: null as { wx: number; wy: number } | null, spaceDown: false,
-  opacity: 100, onionN: 1, brushImg: null as { w: number; h: number; data: Uint8Array } | null, shade: 'light' as 'light' | 'dark', dither: 0, tol: 0, selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { onionNext: false, tile: false, mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
+  opacity: 100, onionN: 1, brushImg: null as { w: number; h: number; data: Uint8Array } | null, shade: 'light' as 'light' | 'dark', dither: 0, tol: 0, color2: [26, 28, 44, 255] as number[], gradMode: 'dither' as 'dither' | 'bands', gradKind: 'linear' as 'linear' | 'radial', selMode: 'rect' as 'rect' | 'lasso' | 'wand', opt: { onionNext: false, tile: false, mirror: false, mirrorY: false, round: false, fillAll: false, pp: true, snap: true, fill: false, onion: false }, defaultPal: store.get('kixel-pal') || 'sweetie',
   mine: (() => { try { const v = JSON.parse(store.get('kixel-mine') || 'null'); return Array.isArray(v) ? v as string[] : PALETTE.slice(0, 8) } catch { return PALETTE.slice(0, 8) } })()
 }
 const selSet = new Set<Frame>()
@@ -644,7 +644,7 @@ async function copyPng(scaleVal: string, withBg: boolean) {
 // ---------------------------------------------------------------- outros formatos e projeto
 function download(blob: Blob, name: string) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000) }
 const slug = (f: Frame) => fname(f).replace(/[^\p{L}\p{N}\- ]+/gu, '').trim().replace(/\s+/g, '-') || 'quadro'
-async function exportAs(fmt: string, scaleVal: string, withBg: boolean, anim: boolean) {
+async function exportAs(fmt: string, scaleVal: string, withBg: boolean, anim: boolean, sheetO: { pad: number; cols: number; trim: boolean } = { pad: 0, cols: 0, trim: false }) {
   const list = selFrames()
   if (fmt === 'gpl') {
     const f = targetFrame(), id = f?.palId ?? S.defaultPal, name = id === 'mine' ? 'Minha paleta' : (PALETTES.find(p => p.id === id)?.name ?? id)
@@ -655,7 +655,7 @@ async function exportAs(fmt: string, scaleVal: string, withBg: boolean, anim: bo
   if (fmt === 'svg') { list.forEach((f, i) => setTimeout(() => download(new Blob([buildSvg(f, exportScale(f, scaleVal), withBg)], { type: 'image/svg+xml' }), `${slug(f)}-${f.w}x${f.h}.svg`), i * 250)); toast(list.length > 1 ? `Baixando ${list.length} arquivos SVG.` : 'SVG baixado.'); return }
   if (fmt === 'godot') { exportGodot(null); return }
   if (fmt === 'sheet') {
-    const names = list.map(f => slug(f)), sh = buildSheet(list, names, 'spritesheet.png', withBg)
+    const names = list.map(f => slug(f)), sh = buildSheet(list, names, 'spritesheet.png', withBg, sheetO)
     sh.canvas.toBlob(b => { download(b!, 'spritesheet.png'); setTimeout(() => download(new Blob([sh.json], { type: 'application/json' }), 'spritesheet.json'), 300) }, 'image/png')
     toast(`Sprite sheet com ${list.length} quadro${list.length > 1 ? 's' : ''}: baixando spritesheet.png e spritesheet.json.`); return
   }
@@ -1017,17 +1017,25 @@ async function importPaletteFile(file: File) {
   useCustomPalette(cols, 'Paleta importada')
 }
 function extractPalette(r: Ref, n: number) {
-  const g = r.src.getContext('2d', { willReadFrequently: true })!, step = Math.max(1, Math.floor(Math.sqrt((r.nw * r.nh) / 40000)))
+  const g = r.src.getContext('2d', { willReadFrequently: true })!
+  quantizePalette(g.getImageData(0, 0, r.nw, r.nh).data, r.nw, r.nh, n, 'Paleta extraída da imagem')
+}
+/** Paleta do desenho: as cores mais usadas do quadro selecionado. */
+function extractFramePalette(n: number) {
+  const f = targetFrame(); if (!f) { toast('Selecione um quadro para pegar a paleta.'); return }
+  quantizePalette(f.px, f.w, f.h, n, 'Paleta do desenho')
+}
+function quantizePalette(d: Uint8Array | Uint8ClampedArray, nw: number, nh: number, n: number, why: string) {
+  const step = Math.max(1, Math.floor(Math.sqrt((nw * nh) / 40000)))
   const buckets = new Map<number, { n: number; r: number; g: number; b: number }>()
-  const d = g.getImageData(0, 0, r.nw, r.nh).data
-  for (let y = 0; y < r.nh; y += step) for (let x = 0; x < r.nw; x += step) {
-    const o = (y * r.nw + x) * 4; if (d[o + 3] < 128) continue
+  for (let y = 0; y < nh; y += step) for (let x = 0; x < nw; x += step) {
+    const o = (y * nw + x) * 4; if (d[o + 3] < 128) continue
     const k = ((d[o] >> 4) << 8) | ((d[o + 1] >> 4) << 4) | (d[o + 2] >> 4), q = buckets.get(k) ?? { n: 0, r: 0, g: 0, b: 0 }
     q.n++; q.r += d[o]; q.g += d[o + 1]; q.b += d[o + 2]; buckets.set(k, q)
   }
   const top = [...buckets.values()].sort((a, b) => b.n - a.n).slice(0, Math.max(2, Math.min(64, n)))
   const hx = (v: number) => Math.round(v).toString(16).padStart(2, '0')
-  useCustomPalette(top.map(q => '#' + hx(q.r / q.n) + hx(q.g / q.n) + hx(q.b / q.n)), 'Paleta extraída da imagem')
+  useCustomPalette(top.map(q => '#' + hx(q.r / q.n) + hx(q.g / q.n) + hx(q.b / q.n)), why)
 }
 
 // ================================================================ área de transferência, ordem, espelhar e girar
@@ -1105,26 +1113,78 @@ function duplicateNote(n: Note) {
 }
 
 // ---------------------------------------------------------------- formas (linha, retângulo, elipse)
-let shape: { kind: 'line' | 'rect' | 'ellipse'; x0: number; y0: number; x1: number; y1: number; shift: boolean } | null = null
+let shape: { kind: 'line' | 'rect' | 'ellipse' | 'gradient'; x0: number; y0: number; x1: number; y1: number; shift: boolean } | null = null
 function drawShape() {
   const s = stroke, sh = shape; if (!s || !sh) return
   s.buf.set(s.before)
   let { x0, y0, x1, y1 } = sh
   if (sh.shift) {
     const dx = x1 - x0, dy = y1 - y0, ax = Math.abs(dx), ay = Math.abs(dy), sx = dx < 0 ? -1 : 1, sy = dy < 0 ? -1 : 1
-    if (sh.kind === 'line') { if (ax > 2 * ay) y1 = y0; else if (ay > 2 * ax) x1 = x0; else { const m = Math.max(ax, ay); x1 = x0 + sx * m; y1 = y0 + sy * m } }
+    if (sh.kind === 'line' || sh.kind === 'gradient') { if (ax > 2 * ay) y1 = y0; else if (ay > 2 * ax) x1 = x0; else { const m = Math.max(ax, ay); x1 = x0 + sx * m; y1 = y0 + sy * m } }
     else { const m = Math.max(ax, ay); x1 = x0 + sx * m; y1 = y0 + sy * m }
   }
   const put = (x: number, y: number) => stamp(s, x, y)
+  if (sh.kind === 'gradient') { gradientFill(s, x0, y0, x1, y1); edited(s); return }
   if (sh.kind === 'line') shp.line(x0, y0, x1, y1, put); else if (sh.kind === 'rect') shp.rect(x0, y0, x1, y1, S.opt.fill, put); else shp.ellipse(x0, y0, x1, y1, S.opt.fill, put)
   edited(s)
+}
+const BAYER4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+/** Gradiente da cor principal para a cor final: pontilhado ordenado (Bayer 4x4) ou faixas de 5 tons. Vale só dentro da seleção, se houver. */
+function gradientFill(s: Stroke, x0: number, y0: number, x1: number, y1: number) {
+  const f = s.f, p = psel && psel.f === f ? psel : null
+  const ax = p ? p.x : 0, ay = p ? p.y : 0, bx = p ? p.x + p.w : f.w, by = p ? p.y + p.h : f.h
+  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy, len = Math.sqrt(len2), c1 = S.color, c2 = S.color2
+  const lerp = (t: number) => [0, 1, 2, 3].map(i => Math.round(c1[i] + (c2[i] - c1[i]) * t))
+  for (let y = ay; y < by; y++) for (let x = ax; x < bx; x++) {
+    if (p?.mask && !p.mask[(y - ay) * p.w + (x - ax)]) continue
+    let t = S.gradKind === 'radial' ? (len ? Math.hypot(x - x0, y - y0) / len : 1) : (len2 ? ((x - x0) * dx + (y - y0) * dy) / len2 : 0)
+    t = clamp01(t)
+    if (S.gradMode === 'bands') setPx(s, x, y, lerp(Math.round(t * 4) / 4))
+    else setPx(s, x, y, t > (BAYER4[y & 3][x & 3] + 0.5) / 16 ? c2 : c1)
+    if (x < s.minx) s.minx = x; if (y < s.miny) s.miny = y; if (x > s.maxx) s.maxx = x; if (y > s.maxy) s.maxy = y
+  }
+}
+
+// ---------------------------------------------------------------- polígono e curva (vários cliques)
+type PathT = { kind: 'poly' | 'curve'; f: Frame; pts: { x: number; y: number }[]; cur: { x: number; y: number } }
+let pathT: PathT | null = null
+function pathPreview(fin?: 'open' | 'closed') {
+  const t = pathT, s = stroke; if (!t || !s) return
+  s.buf.set(s.before)
+  const put = (x: number, y: number) => stamp(s, x, y), pts = t.pts, cur = t.cur
+  if (t.kind === 'poly') { if (fin === 'closed') shp.polygon(pts, true, S.opt.fill, put); else if (fin === 'open') shp.polygon(pts, false, false, put); else shp.polygon([...pts, cur], pts.length >= 2, S.opt.fill, put) }
+  else if (pts.length === 1) shp.line(pts[0].x, pts[0].y, cur.x, cur.y, put)
+  else shp.curve(pts[0].x, pts[0].y, cur.x, cur.y, pts[1].x, pts[1].y, put)
+  edited(s)
+}
+function pathFinish(closeIt: boolean) {
+  const t = pathT; if (!t) return
+  if (t.kind === 'poly' && t.pts.length < 2) { pathCancel(); return }
+  if (t.kind === 'curve' && t.pts.length < 2) { pathCancel(); return }
+  pathPreview(t.kind === 'poly' ? (closeIt || S.opt.fill ? 'closed' : 'open') : undefined); pathT = null; commitStroke()
+}
+function pathCancel() { const s = stroke; pathT = null; if (s) { s.buf.set(s.before); s.minx = 0; s.miny = 0; s.maxx = s.f.w - 1; s.maxy = s.f.h - 1; edited(s); stroke = null; invalidate() } }
+function pathClick(f: Frame, p: { x: number; y: number }) {
+  if (pathT && pathT.f !== f) { pathFinish(false) }
+  if (!pathT) {
+    const s = newStroke(f, false); if (!s) return false
+    stroke = s; pathT = { kind: S.tool as 'poly' | 'curve', f, pts: [p], cur: p }; pathPreview(); toast(S.tool === 'poly' ? 'Clique para marcar os pontos. Clique no primeiro ponto para fechar, no último (ou Enter) para terminar, Esc cancela.' : 'Clique no ponto final e depois onde a curva deve entortar.'); return true
+  }
+  const t = pathT, first = t.pts[0], last = t.pts[t.pts.length - 1]
+  if (t.kind === 'poly') {
+    if (t.pts.length >= 3 && p.x === first.x && p.y === first.y) { pathFinish(true); return true }
+    if (p.x === last.x && p.y === last.y) { pathFinish(false); return true }
+    t.pts.push(p); t.cur = p; pathPreview(); return true
+  }
+  if (t.pts.length === 1) { if (p.x === first.x && p.y === first.y) return true; t.pts.push(p); t.cur = p; pathPreview(); return true }
+  t.cur = p; pathFinish(true); return true
 }
 const clampPx = (f: Frame, p: { x: number; y: number }) => ({ x: Math.max(0, Math.min(f.w - 1, p.x)), y: Math.max(0, Math.min(f.h - 1, p.y)) })
 
 // ---------------------------------------------------------------- seleção de pixels (retângulo, mover, copiar, colar)
 type PSel = { f: Frame; x: number; y: number; w: number; h: number; mask?: Uint8Array }
 let psel: PSel | null = null
-{ const u = doc.undo.bind(doc), r = doc.redo.bind(doc); doc.undo = () => { psel = null; return u() }; doc.redo = () => { psel = null; return r() } }   // a seleção não sobrevive a desfazer/refazer (o tamanho dela ficaria desatualizado)
+{ const u = doc.undo.bind(doc), r = doc.redo.bind(doc); doc.undo = () => { psel = null; if (pathT) { pathCancel(); return true } return u() }; doc.redo = () => { psel = null; return r() } }   // a seleção não sobrevive a desfazer/refazer (o tamanho dela ficaria desatualizado)
 let pxDrag: { x0: number; y0: number; moved: boolean } | null = null
 let lassoPts: { x: number; y: number }[] = [], lassoAdd = false
 let pxMove: { float: Uint8Array; base: Uint8Array; ox: number; oy: number; sx: number; sy: number; moved: boolean } | null = null
@@ -1554,12 +1614,17 @@ ov.addEventListener('pointerdown', e => {
         else { mode = 'stroke'; begin() }
       } else mode = 'pan'
       break
-    case 'line': case 'rect': case 'ellipse':
+    case 'poly': case 'curve': {
+      const f0 = pathT?.f ?? f
+      if (f0) { selectFrame(f0); if (!pathClick(f0, clampPx(f0, localPx(f0, w.x, w.y)))) mode = 'ignore'; else mode = 'ignore' } else mode = 'pan'
+      break
+    }
+    case 'line': case 'rect': case 'ellipse': case 'gradient':
       if (f) {
         selectFrame(f); const p = clampPx(f, localPx(f, w.x, w.y))
         stroke = newStroke(f, false)
         if (!stroke) { mode = 'ignore'; break }
-        shape = { kind: S.tool as 'line' | 'rect' | 'ellipse', x0: p.x, y0: p.y, x1: p.x, y1: p.y, shift: e.shiftKey }; drawShape(); mode = 'shape'
+        shape = { kind: S.tool as 'line' | 'rect' | 'ellipse' | 'gradient', x0: p.x, y0: p.y, x1: p.x, y1: p.y, shift: e.shiftKey }; drawShape(); mode = 'shape'
       } else mode = 'pan'
       break
     case 'marquee':
@@ -1611,6 +1676,7 @@ ov.addEventListener('pointerdown', e => {
 ov.addEventListener('pointermove', e => {
   const rc = ov.getBoundingClientRect(), sx = e.clientX - rc.left, sy = e.clientY - rc.top
   const wpos = s2w(sx, sy); S.hover = { wx: wpos.x, wy: wpos.y }
+  if (pathT) { const p = clampPx(pathT.f, localPx(pathT.f, wpos.x, wpos.y)); if (p.x !== pathT.cur.x || p.y !== pathT.cur.y) { pathT.cur = p; pathPreview() } }
   if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: sx, y: sy })
   if (mode === 'gesture' && ptrs.size >= 2) {
     const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2
@@ -1792,6 +1858,9 @@ window.addEventListener('keydown', e => {
   if (mod && k === 'a') { e.preventDefault(); selectFrames([...doc.frames.values()].filter(f => !f.hidden)); return }
   if (mod && k === 'g') { e.preventDefault(); if (e.shiftKey) { syncSel(); if (S.selCont) ungroup(S.selCont) } else groupSelection(); return }
   if (e.key === 'F2') { e.preventDefault(); ui.renameSelected(); return }
+  if (pathT && e.key === 'Escape') { e.preventDefault(); pathCancel(); return }
+  if (pathT && e.key === 'Enter') { e.preventDefault(); pathFinish(false); return }
+  if (pathT && e.key === 'Backspace') { e.preventDefault(); if (pathT.pts.length > 1) { pathT.pts.pop(); pathT.cur = pathT.pts[pathT.pts.length - 1]; pathPreview() } else pathCancel(); return }
   if (e.key === 'Escape' && psel) { psel = null; invalidate(); return }
   if (e.key === 'Escape') { if (S.tool === 'frame' || S.tool === 'container' || S.tool === 'anim') setTool('select'); else clearSel(); return }
   if ((e.key === 'Delete' || e.key === 'Backspace') && S.tool === 'marquee' && psel) { e.preventDefault(); pxClear(); return }
@@ -1808,7 +1877,7 @@ window.addEventListener('keydown', e => {
   if (!mod && e.shiftKey && k === 'r') { transformFrames('r'); return }
   if ((e.key === 'Delete' || e.key === 'Backspace') && S.tool === 'marquee' && psel) { e.preventDefault(); pxClear(); return }
   if (e.key === '?' || e.key === 'F1') { e.preventDefault(); ui.toggleHelp(); return }
-  const map: Record<string, string> = { l: 'line', u: 'rect', o: 'ellipse', m: 'marquee', v: 'select', b: 'pencil', e: 'eraser', g: 'fill', i: 'picker', h: 'hand', f: 'frame', s: 'container', a: 'anim', t: 'note' }
+  const map: Record<string, string> = { l: 'line', u: 'rect', o: 'ellipse', m: 'marquee', v: 'select', b: 'pencil', e: 'eraser', g: 'fill', i: 'picker', p: 'poly', c: 'curve', r: 'gradient', h: 'hand', f: 'frame', s: 'container', a: 'anim', t: 'note' }
   if (!mod && k === 'd') { setTool('shade'); return }
   if (!mod && (k === 'w' || k === 'q')) { S.selMode = k === 'w' ? 'wand' : 'lasso'; setTool('marquee'); ui.ctxSync(); return }
   if (!mod && k === 'm') { S.selMode = 'rect'; setTool('marquee'); ui.ctxSync(); return }
@@ -1975,7 +2044,7 @@ function drawOverlay() {
     octx.lineWidth = 1.5; octx.setLineDash([5, 4]); octx.strokeStyle = '#000'; octx.stroke(); octx.lineDashOffset = 4.5; octx.strokeStyle = '#fff'; octx.stroke(); octx.setLineDash([]); octx.lineDashOffset = 0
   }
   for (const n of doc.notes) drawNote(n)
-  if (S.hover && hf && ['pencil', 'eraser', 'line', 'rect', 'ellipse'].includes(S.tool) && !S.spaceDown) {
+  if (S.hover && hf && ['pencil', 'eraser', 'line', 'rect', 'ellipse', 'poly', 'curve'].includes(S.tool) && !S.spaceDown) {
     const p = localPx(hf, S.hover.wx, S.hover.wy), half = Math.floor((S.brush - 1) / 2), a = w2s(hf.x + p.x - half, hf.y + p.y - half)
     octx.strokeStyle = '#fff'; octx.lineWidth = 1; octx.strokeRect(Math.round(a.x) + 0.5, Math.round(a.y) + 0.5, S.brush * z - 1, S.brush * z - 1)
     if (S.tool === 'pencil') { octx.fillStyle = `rgba(${S.color[0]},${S.color[1]},${S.color[2]},0.55)`; octx.fillRect(a.x, a.y, S.brush * z, S.brush * z) }
@@ -1985,7 +2054,7 @@ function drawOverlay() {
 // ================================================================ ferramentas, cor e interface (ui.ts)
 function toast(msg: string) { ui.toast(msg) }
 function setColor(c: number[]) { S.color = c; ui.colorChanged() }
-function setTool(t: string) { if (t !== 'marquee') psel = null; S.tool = t; ui.toolChanged(t) }
+function setTool(t: string) { if (pathT && t !== S.tool) pathFinish(false); if (t !== 'marquee' && t !== 'gradient') psel = null; S.tool = t; ui.toolChanged(t) }
 
 // ================================================================ estresse e medição
 const rnd = (() => { let s = 123456789; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296) })()
@@ -2056,7 +2125,7 @@ const ui = initUI({
     adjustColors, invertColors, outlineAuto, colorRamp, fname, cname, flyTo, focusFrame, fitRect, fitAll, stepZoom, snapZoom, getCam: () => cam, stageSize: () => ({ w: cssW, h: cssH }),
     placeFrame, setLastPreset: (w: number, h: number) => { lastPreset = { w, h } }, deleteSelection, duplicateSelection, groupSelection, ungroup, fitContainer, reshapeFrame,
     openTimeline: (k: Cont) => timeline.open(k), setTag, tagAdd, layerSetProp, importSheet, layerAdd, layerDup, layerDel, layerMove, layerToggle, layerRename, layerSetActive, loadImage, demoImage, removeRef, traceFit, pixelateRef, pinRef,
-    openContext, uploadCount: () => R.uploadCount, frameColors, recolorFrames, recolorBegin, recolorEnd, alignFrames, distributeFrames, layersState, layerOpacityLive, layerCommit, layerMergeDown, layerReorder, importAseprite, sliceSheet, importPaletteFile, extractPalette, newAnimation, setAnimOrder, setAnim, exportGodot, importProjectFile, newWorkspace: () => void createWorkspace(), goHome, renameWs, exportPng, exportAs, animFrames, exportGif, exportAseAnim, animAddFrame, animSame, saveProject, openProject, copyPng, exportScale, removeNote, NOTE_COLORS, setTool, setColor, toast, paletteById, paletteOf, boundsOf, spawn, runBench, perfInfo, w2s, hit: () => labelRects
+    openContext, uploadCount: () => R.uploadCount, frameColors, recolorFrames, recolorBegin, recolorEnd, alignFrames, distributeFrames, layersState, layerOpacityLive, layerCommit, layerMergeDown, layerReorder, importAseprite, sliceSheet, importPaletteFile, extractPalette, extractFramePalette, newAnimation, setAnimOrder, setAnim, exportGodot, importProjectFile, newWorkspace: () => void createWorkspace(), goHome, renameWs, exportPng, exportAs, animFrames, exportGif, exportAseAnim, animAddFrame, animSame, saveProject, openProject, copyPng, exportScale, removeNote, NOTE_COLORS, setTool, setColor, toast, paletteById, paletteOf, boundsOf, spawn, runBench, perfInfo, w2s, hit: () => labelRects
   }
 })
 

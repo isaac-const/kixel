@@ -80,16 +80,25 @@ export function buildSvg(f: Frame, scale: number, withBg: boolean): string {
 }
 
 /** Junta os quadros numa imagem só (linhas de altura variável) e devolve também o JSON no formato do Aseprite. */
-export function buildSheet(frames: Frame[], names: string[], imageName: string, withBg: boolean) {
-  const total = frames.reduce((a, f) => a + f.w * f.h, 0), maxW = Math.max(...frames.map(f => f.w))
-  const rowW = Math.max(maxW, Math.ceil(Math.sqrt(total) * 1.2))
+export type SheetOpts = { pad?: number; trim?: boolean; cols?: number }
+/** Área com pixels do quadro (corte do espaço vazio). Quadro vazio ou com fundo fica inteiro. */
+export function contentBox(f: Frame, withBg: boolean) {
+  if (withBg && f.bg) return { x: 0, y: 0, w: f.w, h: f.h }
+  let x0 = f.w, y0 = f.h, x1 = -1, y1 = -1
+  for (let y = 0; y < f.h; y++) for (let x = 0; x < f.w; x++) if (f.px[(y * f.w + x) * 4 + 3]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+  return x1 < 0 ? { x: 0, y: 0, w: f.w, h: f.h } : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }
+}
+export function buildSheet(frames: Frame[], names: string[], imageName: string, withBg: boolean, o: SheetOpts = {}) {
+  const pad = o.pad ?? 0, boxes = frames.map(f => (o.trim ? contentBox(f, withBg) : { x: 0, y: 0, w: f.w, h: f.h }))
+  const total = boxes.reduce((a, b) => a + (b.w + pad) * (b.h + pad), 0), maxW = Math.max(...boxes.map(b => b.w + pad))
+  const rowW = o.cols ? Infinity : Math.max(maxW, Math.ceil(Math.sqrt(total) * 1.2))
   const pos: { x: number; y: number }[] = []
-  let x = 0, y = 0, rowH = 0, sheetW = 0
-  for (const f of frames) {
-    if (x > 0 && x + f.w > rowW) { x = 0; y += rowH; rowH = 0 }
-    pos.push({ x, y }); x += f.w; rowH = Math.max(rowH, f.h); sheetW = Math.max(sheetW, x)
-  }
-  const sheetH = y + rowH, c = document.createElement('canvas'); c.width = sheetW; c.height = sheetH
+  let x = pad, y = pad, rowH = 0, sheetW = 0, inRow = 0
+  boxes.forEach(b => {
+    if (inRow > 0 && ((o.cols && inRow >= o.cols) || (!o.cols && x + b.w > rowW))) { x = pad; y += rowH + pad; rowH = 0; inRow = 0 }
+    pos.push({ x, y }); x += b.w + pad; inRow++; rowH = Math.max(rowH, b.h); sheetW = Math.max(sheetW, x)
+  })
+  const sheetH = y + rowH + pad, c = document.createElement('canvas'); c.width = sheetW; c.height = sheetH
   const g = c.getContext('2d')!
   const json: any = { frames: {}, meta: { app: 'Kixel', version: '0.1', image: imageName, format: 'RGBA8888', size: { w: sheetW, h: sheetH }, scale: '1' } }
   frames.forEach((f, i) => {
@@ -97,8 +106,8 @@ export function buildSheet(frames: Frame[], names: string[], imageName: string, 
     const tg = t.getContext('2d')!
     if (withBg && f.bg) { tg.fillStyle = f.bg; tg.fillRect(0, 0, f.w, f.h) }
     const id = new ImageData(f.w, f.h); id.data.set(f.px); const t2 = document.createElement('canvas'); t2.width = f.w; t2.height = f.h; t2.getContext('2d')!.putImageData(id, 0, 0)
-    tg.drawImage(t2, 0, 0); g.drawImage(t, pos[i].x, pos[i].y)
-    json.frames[names[i]] = { frame: { x: pos[i].x, y: pos[i].y, w: f.w, h: f.h }, rotated: false, trimmed: false, spriteSourceSize: { x: 0, y: 0, w: f.w, h: f.h }, sourceSize: { w: f.w, h: f.h }, duration: 100 }
+    tg.drawImage(t2, 0, 0); const b = boxes[i]; g.drawImage(t, b.x, b.y, b.w, b.h, pos[i].x, pos[i].y, b.w, b.h)
+    json.frames[names[i]] = { frame: { x: pos[i].x, y: pos[i].y, w: b.w, h: b.h }, rotated: false, trimmed: !!o.trim && (b.w !== f.w || b.h !== f.h), spriteSourceSize: { x: b.x, y: b.y, w: b.w, h: b.h }, sourceSize: { w: f.w, h: f.h }, duration: 100 }
   })
   return { canvas: c, json: JSON.stringify(json, null, 2) }
 }
