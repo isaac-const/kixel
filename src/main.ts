@@ -748,6 +748,9 @@ function handlePoints(o: Box, corners: boolean) {
   if (!corners && !small) Object.assign(pts, { n: [mx, a.y], s: [mx, b.y], e: [b.x, my], w: [a.x, my] })
   return pts
 }
+const DRAW_TOOLS = ['pencil', 'eraser', 'shade', 'fill', 'line', 'rect', 'ellipse', 'poly', 'curve', 'gradient']
+/** Ferramenta de desenho sobre um quadro: o pixel da borda é desenhado, não vira alça de redimensionar. */
+const drawsInside = (wx: number, wy: number) => DRAW_TOOLS.includes(S.tool) && !!doc.hit(wx, wy)
 function handleHit(sx: number, sy: number): { kind: 'f' | 'c' | 'r' | 'n'; obj: any; dir: string } | null {
   const t = handleTarget(); if (!t) return null
   const pts = handlePoints(t.obj, t.kind === 'r')
@@ -1168,7 +1171,7 @@ function pathClick(f: Frame, p: { x: number; y: number }) {
   if (pathT && pathT.f !== f) { pathFinish(false) }
   if (!pathT) {
     const s = newStroke(f, false); if (!s) return false
-    stroke = s; pathT = { kind: S.tool as 'poly' | 'curve', f, pts: [p], cur: p }; pathPreview(); toast(S.tool === 'poly' ? 'Clique para marcar os pontos. Clique no primeiro ponto para fechar, no último (ou Enter) para terminar, Esc cancela.' : 'Clique no ponto final e depois onde a curva deve entortar.'); return true
+    stroke = s; pathT = { kind: S.tool as 'poly' | 'curve', f, pts: [p], cur: p }; pathPreview(); { const touch = matchMedia('(pointer: coarse)').matches; toast(S.tool === 'poly' ? (touch ? 'Toque para marcar os pontos. Toque no primeiro ponto para fechar ou no último para terminar. Desfazer cancela.' : 'Clique para marcar os pontos. Clique no primeiro ponto para fechar, no último (ou Enter) para terminar, Esc cancela.') : (touch ? 'Toque no ponto final e depois onde a curva deve entortar.' : 'Clique no ponto final e depois onde a curva deve entortar.')) } return true
   }
   const t = pathT, first = t.pts[0], last = t.pts[t.pts.length - 1]
   if (t.kind === 'poly') {
@@ -1592,7 +1595,7 @@ ov.addEventListener('pointerdown', e => {
     if (hitN) { selectNote(hitN); ui.editNote(hitN.id) } else { const n = createNote(w.x, w.y); setTool('select'); ui.editNote(n.id) }
     mode = 'ignore'; invalidate(); ui.panels(true); return
   }
-  const hd = free ? handleHit(sx, sy) : null           // 1) alças de redimensionar do que está selecionado
+  const hd = free && !drawsInside(w.x, w.y) ? handleHit(sx, sy) : null   // 1) alças de redimensionar do que está selecionado (com ferramenta de desenho, tocar dentro do quadro desenha)
   if (hd) { beginResize(hd); invalidate(); return }
   const lb = free ? labelHit(sx, sy) : null            // 2) nomes clicáveis
   if (lb) {
@@ -1687,7 +1690,7 @@ ov.addEventListener('pointermove', e => {
   }
   if (!ptrs.has(e.pointerId) || ptrs.size !== 1) { // sem botão: só o cursor
     if (e.pointerType !== 'touch' && !S.spaceDown && S.tool !== 'hand') {
-      const tools = S.tool !== 'frame' && S.tool !== 'container' && S.tool !== 'anim', hd = tools ? handleHit(sx, sy) : null
+      const tools = S.tool !== 'frame' && S.tool !== 'container' && S.tool !== 'anim', hd = tools && !drawsInside(wpos.x, wpos.y) ? handleHit(sx, sy) : null
       const ph = pxHandleAt(sx, sy)
       ov.style.cursor = ph ? CURSORS[ph] : hd ? CURSORS[hd.dir] : tools && labelHit(sx, sy) ? 'pointer' : ui.toolCursor(S.tool)
     }

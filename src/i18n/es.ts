@@ -672,4 +672,6 @@ export const ES: Record<string, string> = {
   "Varinha mágica": "Varita mágica",
   "Laço: arraste para contornar à mão": "Lazo: arrastra para contornar a mano",
   "Varinha mágica: clique numa cor para selecionar os parecidos": "Varita mágica: haz clic en un color para seleccionar los parecidos",
+  "Toque para marcar os pontos. Toque no primeiro ponto para fechar ou no último para terminar. Desfazer cancela.": "Toca para marcar puntos. Toca el primero para cerrar o el último para terminar. Deshacer cancela.",
+  "Toque no ponto final e depois onde a curva deve entortar.": "Toca el punto final y luego donde la curva debe curvarse.",
 }

@@ -672,4 +672,6 @@ export const EN: Record<string, string> = {
   "Varinha mágica": "Magic wand",
   "Laço: arraste para contornar à mão": "Lasso: drag to outline by hand",
   "Varinha mágica: clique numa cor para selecionar os parecidos": "Magic wand: click a color to select similar pixels",
+  "Toque para marcar os pontos. Toque no primeiro ponto para fechar ou no último para terminar. Desfazer cancela.": "Tap to place points. Tap the first point to close or the last one to finish. Undo cancels.",
+  "Toque no ponto final e depois onde a curva deve entortar.": "Tap the end point, then where the curve should bend.",
 }
