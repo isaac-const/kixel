@@ -4,9 +4,9 @@ Todas as mudanças importantes do Kixel ficam aqui. O formato segue o [Keep a Ch
 
 ## [Não lançado]
 
-## [0.1.0] - 2026-11-23
+## [1.0.0] - 2026-11-24
 
-Primeira versão marcada. Reúne tudo o que o editor faz até aqui.
+Primeira versão estável. Reúne tudo o que o editor faz até aqui.
 
 ### Adicionado
 - **Tela infinita:** quadros, contêineres, camadas, imagens de referência e notas, com desfazer, seleção múltipla, alinhar e linhas-guia.
@@ -20,5 +20,5 @@ Primeira versão marcada. Reúne tudo o que o editor faz até aqui.
 - **Interface:** barra com ferramentas agrupadas, menu do botão direito, layout para celular, tela inicial com espaços de trabalho.
 - **Idiomas:** português, inglês e espanhol.
 
-[Não lançado]: https://github.com/isaac-const/kixel/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/isaac-const/kixel/releases/tag/v0.1.0
+[Não lançado]: https://github.com/isaac-const/kixel/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/isaac-const/kixel/releases/tag/v1.0.0
