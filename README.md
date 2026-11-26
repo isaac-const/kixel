@@ -25,7 +25,7 @@ O resultado do teste automático é gravado em `bench.log`. Outros valores de `a
 | Mover a tela | Espaço + arrastar, ou botão do meio | 2 dedos |
 | Zoom | roda do mouse (passos inteiros) | pinça |
 | Desfazer | Ctrl+Z | toque rápido com 2 dedos |
-| Menu do que está sob o cursor | botão direito | toque longo |
+| Menu do que está sob o cursor | botão direito | toque longo (com Selecionar; com ferramentas de desenho o toque longo é traço) |
 | Ver tudo | Shift+1 | botão ⤢ |
 | Zoom no quadro | Shift+2 ou duplo clique | – |
 | Atalhos | `?` | botão ao lado do zoom |

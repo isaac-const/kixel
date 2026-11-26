@@ -444,3 +444,5 @@ details.acc>summary{min-height:38px}details.acc>summary span[data-icon]{display:
 .pg .pr.on em,.pg .pr.on .e,.pr.on .e{color:#c6cbd9}
 .it.on .e,.it.sel .e,.tr .on .e,.tr .sel .e{color:#c6cbd9}
 .tr.on .e{color:#c6cbd9}
+/* telas de toque: atalhos de teclado não aparecem no menu (não servem e deixam o menu largo) */
+@media (pointer:coarse){.cmenu kbd,.toolmenu kbd{display:none}.toolmenu{min-width:170px}}
