@@ -426,3 +426,9 @@ details.acc>summary{min-height:38px}details.acc>summary span[data-icon]{display:
 .toolmenu .ck{width:16px;display:inline-flex}.toolmenu svg{width:16px;height:16px}
 .toolmenu .lb{flex:1}.toolmenu kbd{color:#6f7589;font-size:11px}
 @media (max-width:900px){#tools button.tcaret{height:42px}}
+/* paleta: o seletor ocupa a linha inteira (o nome não fica cortado) e os botões vêm embaixo */
+.row:has(>#palsel){flex-wrap:wrap}
+.row>#palsel{flex:1 1 100%}
+.row:has(>#palsel)>button{flex:1 1 0;width:auto;min-width:40px}
+/* toque: setas dos grupos e cores com alvo maior */
+@media (pointer:coarse){#tools button.tcaret{width:26px}}
