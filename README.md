@@ -95,7 +95,9 @@ As parecidas ficam num botão só na barra, com uma seta que abre a lista. O bot
 ## Interface
 Layout de estúdio: árvore de camadas à esquerda, painel contextual (muda conforme o que está selecionado) à direita, ferramentas flutuantes embaixo e barra de contexto no topo. Em telas até 900 px vira o layout de ilhas: paleta e ferramentas embaixo, painéis em gavetas (botões "Camadas" e "Painel"). No celular, o player começa compacto (▾ mostra o resto) e o toque longo abre o menu do que está sob o dedo. O painel "Desempenho" (estresse e teste de 10 s) fica recolhido na direita.
 
-Visual limpo, cantos suaves e cinzas frios, com destaque verde-menta `#4de3b5`. Fonte Geist (texto) e Geist Mono (números), ícones Lucide. Logo em `public/`: `mark.svg` (ícone), `logo.svg` e `logo-dark.svg` (ícone + nome), `wordmark.svg` e `wordmark-dark.svg`.
+Visual limpo, cantos suaves e cinzas frios, com destaque verde-menta `#4de3b5`. Fonte Geist (texto) e Geist Mono (números), ícones Lucide.
+
+**Logo:** um K de pixels (grade 7×7, haste e braços de 2 pixels) dentro de uma moldura de quatro cantos, como o quadro do editor. Paleta: menta `#4de3b5`, grafite `#18191e`, branco `#f4f4f4` e, só para fundo claro, o menta escuro `#16a37c`. Os arquivos ficam em `brand/` (`svg/` é a fonte, `png/` tem 1024 px com fundo transparente): ícone de app (principal, todo menta, todo branco, menta com preto, todo preto no branco) e marca solta (principal para fundo escuro, toda menta, toda branca, toda preta e para fundo claro). Em `public/` estão o que o app usa: `mark.svg` (favicon e ícone), `favicon.ico`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `logo.svg` e `logo-dark.svg` (símbolo + nome, para fundo escuro e claro) e `wordmark.svg` e `wordmark-dark.svg` (só o nome, desenhado a partir da Geist Bold, com um quadradinho no lugar do pingo do i).
 
 ## Como é por dentro
 - Núcleo em TypeScript puro (`doc.ts`): quadros, atlas, índice espacial, histórico.
